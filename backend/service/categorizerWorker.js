@@ -12,9 +12,16 @@ const MAX_REQUESTS = 8; // max requests per WINDOW_MS
 const WINDOW_MS = 60 * 1000; // 1 minute
 
 // ---- Model switching state ----
-let activeModel = "gemini-2.5-flash"; // default
+const MODELS = [
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash",
+  "gemini-3-flash",
+  "gemini-3.1-flash-lite",
+  "gemini-2.5-pro",
+];
+
+let modelIndex = 0; // track which model we are currently using
 let lastSwitchDate = new Date().toDateString(); // track when quota was last reset
-let triedProToday = false; // flag to avoid looping flash <-> pro
 
 const PROMPT = `🧾 System Prompt: Expense Categorisation Expert
 
@@ -444,13 +451,14 @@ async function categorizeExpenseWithGemini(expenseId, label) {
   try {
     const expense = await Expense.findById(expenseId).populate("group");
 
-    // Reset model to flash at the start of a new day
+    // Reset model to the first one at the start of a new day
     const today = new Date().toDateString();
     if (today !== lastSwitchDate) {
-      activeModel = "gemini-2.5-flash";
-      triedProToday = false;
+      modelIndex = 0;
       lastSwitchDate = today;
     }
+
+    const activeModel = MODELS[modelIndex];
 
     const prompt = `
       ${PROMPT}
@@ -480,20 +488,20 @@ async function categorizeExpenseWithGemini(expenseId, label) {
       subcategory: parsed.subcategory || "Other",
     };
   } catch (err) {
-    console.error(`Gemini error on ${activeModel}:`, err.message);
+    const currentModel = MODELS[modelIndex];
+    console.error(`Gemini error on ${currentModel}:`, err.message);
 
     // Handle quota exhaustion (429 error with quota info)
     if (err.message.includes("429") && err.message.includes("quota")) {
-      if (activeModel === "gemini-2.5-flash" && !triedProToday) {
-        console.log("⚠️ Flash quota exceeded. Switching to Pro model...");
-        activeModel = "gemini-2.5-pro";
-        triedProToday = true;
-        return categorizeExpenseWithGemini(expenseId, label); // retry with pro
+      if (modelIndex < MODELS.length - 1) {
+        modelIndex++;
+        console.log(`⚠️ Quota exceeded on ${currentModel}. Switching to ${MODELS[modelIndex]}...`);
+        return categorizeExpenseWithGemini(expenseId, label); // retry with next model
       } else {
         console.log(
-          "⚠️ Both Flash and Pro quotas exhausted. Falling back to Flash until reset."
+          "⚠️ All model quotas exhausted. Falling back to the first model for future retries."
         );
-        activeModel = "gemini-2.5-flash"; // stick to flash until next day reset
+        modelIndex = 0; // reset for next attempts (will likely still 429 until reset)
         return null;
       }
     }

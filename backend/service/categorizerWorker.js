@@ -13,15 +13,33 @@ const WINDOW_MS = 60 * 1000; // 1 minute
 
 // ---- Model switching state ----
 const MODELS = [
-  "gemini-2.5-flash-lite",
-  "gemini-2.5-flash",
-  "gemini-3-flash",
+  "gemini-3.1-flash-live-preview", // Unlimited RPM!
   "gemini-3.1-flash-lite",
+  "gemini-3-flash-preview",
+  "gemma-4-31b-it",             // Gemma 4 31B (15 RPM)
+  "gemma-4-26b-a4b-it",         // Gemma 4 26B (15 RPM)
+  "gemini-3.1-flash-lite-preview",
+  "gemini-3-pro-preview",
+  "gemini-flash-lite-latest",
+  "gemini-2.0-flash-lite",
+  "gemini-2.5-flash-lite",
+  "gemini-3.1-pro-preview",
+  "gemini-2.5-flash",
   "gemini-2.5-pro",
 ];
 
 let modelIndex = 0; // track which model we are currently using
 let lastSwitchDate = new Date().toDateString(); // track when quota was last reset
+
+/**
+ * Calculates milliseconds until the next midnight
+ */
+function getMsUntilMidnight() {
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  return midnight - now;
+}
 
 const PROMPT = `🧾 System Prompt: Expense Categorisation Expert
 
@@ -359,7 +377,7 @@ async function processQueue() {
     const { expenseId, label } = queue.shift();
 
     try {
-      console.log(`Categorizing expense: ${label}`);
+      console.log(`\n[Queue: ${queue.length + 1} remaining] Categorizing: "${label}"`);
 
       const normalized = label.trim().toLowerCase();
 
@@ -413,10 +431,17 @@ async function processQueue() {
       const result = await categorizeExpenseWithGemini(expenseId, label);
 
       if (!result) {
-        // 👇 don’t update cache, just requeue for retry
+        // 👇 all models failed, likely daily quota hit
         queue.push({ expenseId, label });
-        console.log(`⏳ Retry scheduled for: ${label}`);
-        await new Promise((r) => setTimeout(r, 2000)); // optional backoff
+        
+        const waitMs = getMsUntilMidnight();
+        const waitHours = (waitMs / (1000 * 60 * 60)).toFixed(2);
+        
+        console.log(`\n🛑 DAILY QUOTA EXHAUSTED for all models.`);
+        console.log(`⏳ Pausing categorization until midnight (~${waitHours} hours remaining).`);
+        console.log(`📅 Will resume at: ${new Date(Date.now() + waitMs).toLocaleString()}`);
+        
+        await new Promise((r) => setTimeout(r, waitMs));
         continue;
       }
 
@@ -476,6 +501,7 @@ async function categorizeExpenseWithGemini(expenseId, label) {
 
     const model = genAI.getGenerativeModel({ model: activeModel });
 
+    console.log(`📡 Calling Gemini (${activeModel})...`);
     const result = await model.generateContent(prompt);
 
     // Extract the text response safely
@@ -494,11 +520,11 @@ async function categorizeExpenseWithGemini(expenseId, label) {
     // Switch to next model on ANY error (Quota, Invalid Key for that model, or Not Found)
     if (modelIndex < MODELS.length - 1) {
       modelIndex++;
-      console.log(`⚠️ Error on ${currentModel}. Trying next model: ${MODELS[modelIndex]}...`);
+      console.log(`🔄 Switching Model: ${currentModel} -> ${MODELS[modelIndex]}`);
       return categorizeExpenseWithGemini(expenseId, label); // retry with next model
     } else {
       console.log(
-        "❌ All models failed or exhausted. Resetting to the first model for future retries."
+        "🚫 All models failed or exhausted for this request."
       );
       modelIndex = 0;
       return null;

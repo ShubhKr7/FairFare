@@ -12,6 +12,7 @@ import promoRoutes from "./routes/promo.js";
 import termsRoutes from "./routes/terms.js";
 import aiRoutes from "./routes/ai.js";
 import activityRoutes from "./routes/activity.js";
+import { initExpenseCategorizer } from "./service/expenseCategorizer.js";
 import session from "express-session";
 
 const app = express();
@@ -71,7 +72,7 @@ function keepServerAwake() {
 keepServerAwake();
 
 connectDB().then(() => {
-
+  initExpenseCategorizer();
   app.listen(8000, () => {
     console.log("Server running on PORT:8000");
   });

@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from "dotenv";
 dotenv.config();
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY?.trim());
 
 const EXPIRY_MONTHS = 6; // expire cache after 6 months
 
@@ -491,23 +491,19 @@ async function categorizeExpenseWithGemini(expenseId, label) {
     const currentModel = MODELS[modelIndex];
     console.error(`Gemini error on ${currentModel}:`, err.message);
 
-    // Handle quota exhaustion (429 error with quota info)
-    if (err.message.includes("429") && err.message.includes("quota")) {
-      if (modelIndex < MODELS.length - 1) {
-        modelIndex++;
-        console.log(`⚠️ Quota exceeded on ${currentModel}. Switching to ${MODELS[modelIndex]}...`);
-        return categorizeExpenseWithGemini(expenseId, label); // retry with next model
-      } else {
-        console.log(
-          "⚠️ All model quotas exhausted. Falling back to the first model for future retries."
-        );
-        modelIndex = 0; // reset for next attempts (will likely still 429 until reset)
-        return null;
-      }
+    // Switch to next model on ANY error (Quota, Invalid Key for that model, or Not Found)
+    if (modelIndex < MODELS.length - 1) {
+      modelIndex++;
+      console.log(`⚠️ Error on ${currentModel}. Trying next model: ${MODELS[modelIndex]}...`);
+      return categorizeExpenseWithGemini(expenseId, label); // retry with next model
+    } else {
+      console.log(
+        "❌ All models failed or exhausted. Resetting to the first model for future retries."
+      );
+      modelIndex = 0;
+      return null;
     }
-
-    return null;
   }
 }
 
-export { enqueue };
+export { enqueue, queue, isProcessing };

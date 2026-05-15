@@ -2,13 +2,23 @@ import mongoose from "mongoose";
 import { Expense } from "../models/schema.js";
 import { enqueue } from "./categorizerWorker.js";
 
+// Common query for finding uncategorized expenses
+const UNCATEGORIZED_QUERY = {
+  $or: [
+    { category: "Uncategorized" },
+    { category: { $exists: false } },
+    { category: null },
+    { category: "" },
+    { subcategory: null },
+    { subcategory: "" }
+  ]
+};
+
 // Process old expenses in batches (stream cursor)
 async function processExistingExpenses() {
-  console.log("Scanning for uncategorized expenses...");
+  console.log("🔍 Scanning for uncategorized expenses...");
 
-  const cursor = Expense.find({
-    $or: [{ category: null }, { subcategory: null }],
-  }).cursor();
+  const cursor = Expense.find(UNCATEGORIZED_QUERY).cursor();
 
   for (
     let expense = await cursor.next();
@@ -51,9 +61,11 @@ function startExpenseStream() {
     resumeToken = change._id;
     lastEventTime = Date.now();
 
-    if (change.operationType === "insert") {
+    // Loophole fixed: Handling both insert and update
+    if (change.operationType === "insert" || change.operationType === "update") {
       const doc = change.fullDocument;
-      if (!doc.category || !doc.subcategory) {
+      // Check if the resulting document is uncategorized
+      if (!doc.category || doc.category === "Uncategorized" || !doc.subcategory || doc.subcategory === "") {
         enqueue(doc._id, doc.title);
       }
     }
@@ -102,15 +114,13 @@ mongoose.connection.on("reconnected", () => {
 
 async function rescanExpenses() {
   try {
-    const uncategorized = await Expense.find({
-      $or: [{ category: null }, { subcategory: null }],
-    })
+    const uncategorized = await Expense.find(UNCATEGORIZED_QUERY)
       .limit(100)
       .lean();
     uncategorized.forEach((expense) => enqueue(expense._id, expense.title));
-    console.log(
-      `🔁 Rescan found ${uncategorized.length} uncategorized expenses.`
-    );
+    if (uncategorized.length > 0) {
+      console.log(`🔁 Rescan found ${uncategorized.length} uncategorized expenses.`);
+    }
   } catch (err) {
     console.error("Rescan error:", err);
   }
@@ -121,17 +131,18 @@ setInterval(rescanExpenses, 10 * 60 * 1000);
 
 // Init categorizer
 async function initExpenseCategorizer() {
-  console.log("inside initExpenseCategorizer");
-  const exists = await Expense.exists({
-    $or: [{ category: null }, { subcategory: null }],
-  });
-  console.log("exists", exists);
+  console.log("🚀 Initializing Expense Categorizer...");
+  
+  const exists = await Expense.exists(UNCATEGORIZED_QUERY);
 
   if (exists) {
-    console.log("Processing existing expenses...");
+    console.log("📂 Processing existing expenses...");
     await processExistingExpenses();
+  } else {
+    console.log("✨ No existing uncategorized expenses found.");
   }
-  console.log("Starting expense stream...");
+  
+  console.log("📡 Starting real-time expense stream...");
   startExpenseStream();
 }
 

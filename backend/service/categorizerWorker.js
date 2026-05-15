@@ -13,12 +13,11 @@ const WINDOW_MS = 60 * 1000; // 1 minute
 
 // ---- Model switching state ----
 const MODELS = [
-  "gemini-3.1-flash-live-preview", // Unlimited RPM!
+  "gemini-3-flash-preview",     // Confirmed working in 2026!
   "gemini-3.1-flash-lite",
-  "gemini-3-flash-preview",
+  "gemini-3.1-flash-lite-preview",
   "gemma-4-31b-it",             // Gemma 4 31B (15 RPM)
   "gemma-4-26b-a4b-it",         // Gemma 4 26B (15 RPM)
-  "gemini-3.1-flash-lite-preview",
   "gemini-3-pro-preview",
   "gemini-flash-lite-latest",
   "gemini-2.0-flash-lite",

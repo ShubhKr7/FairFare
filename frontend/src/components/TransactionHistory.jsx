@@ -25,7 +25,7 @@ const TransactionHistory = () => {
   const [transactions, setTransactions] = useState([]);
   const [friendName, setFriendName] = useState("");
   const [netBalance, setNetBalance] = useState(0);
-  const [amount, setAmount] = useState(0);
+  const [amount, setAmount] = useState("");
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [txLoading, setTxLoading] = useState(true);
@@ -624,7 +624,7 @@ const TransactionHistory = () => {
       });
       setSuccessOverlay({ type: "paid", amount: paidAmount });
       setTimeout(() => setSuccessOverlay(null), 2000);
-      setAmount(0);
+      setAmount("");
       setText("");
       // Silent refetch to avoid flickering
       await fetchData(storedUser, true);
@@ -669,7 +669,7 @@ const TransactionHistory = () => {
       });
       setSuccessOverlay({ type: "received", amount: receivedAmount });
       setTimeout(() => setSuccessOverlay(null), 2000);
-      setAmount(0);
+      setAmount("");
       setText("");
       // Silent refetch to avoid flickering
       await fetchData(storedUser, true);

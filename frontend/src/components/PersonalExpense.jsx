@@ -40,7 +40,7 @@ const PersonalExpense = () => {
   const [nextCursor, setNextCursor] = useState(null);
 
   // Input bar
-  const [amount, setAmount] = useState(0);
+  const [amount, setAmount] = useState("");
   const [text, setText] = useState("");
 
   // Modals / overlays
@@ -209,7 +209,7 @@ const PersonalExpense = () => {
 
       setSuccessOverlay({ amount: paidAmount, description: text });
       setTimeout(() => setSuccessOverlay(null), 2200);
-      setAmount(0);
+      setAmount("");
       setText("");
 
       // Append the new expense at the bottom

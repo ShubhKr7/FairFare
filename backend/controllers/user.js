@@ -1501,14 +1501,82 @@ const forgotPassword = async (req, res) => {
       to: email,
       subject: "Account Recovery - Fair Fare",
       html: `
-        <h1>Password Reset Requested</h1>
-        <p>Hi ${user.username || "User"},</p>
-        <p>Your OTP for account recovery is:</p>
-        <h2><strong>${otp}</strong></h2>
-        <p>This code is valid for 5 minutes.</p>
-        <p>If you did not request this, please ignore this email.</p>
-        <br/>
-        <p>Thanks,<br/><strong>Fair Fare Team</strong></p>
+        <!DOCTYPE html>
+        <html lang="en">
+        <body style="margin: 0; padding: 0; background-color: #f6f9fc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+          <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f6f9fc; padding: 40px 0;">
+            <tr>
+              <td align="center">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 500px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04); border: 1px solid #eef2f6;">
+                  <tr>
+                    <td height="6" style="background: linear-gradient(90deg, #4f46e5 0%, #d946ef 100%);"></td>
+                  </tr>
+                  <tr>
+                    <td align="center" style="padding: 32px 32px 16px 32px;">
+                      <table border="0" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td align="center" style="background: linear-gradient(135deg, #4f46e5 0%, #d946ef 100%); border-radius: 12px; width: 44px; height: 44px; text-align: center; vertical-align: middle;">
+                            <span style="font-size: 18px; font-weight: 800; color: #ffffff; display: block; line-height: 44px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">FF</span>
+                          </td>
+                          <td style="font-size: 20px; font-weight: 700; color: #1f2937; padding-left: 12px; letter-spacing: -0.5px;">
+                            Fair Fare
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 20px 40px 32px 40px;">
+                      <h1 style="font-size: 22px; font-weight: 700; color: #111827; margin: 0 0 16px 0; text-align: center; line-height: 1.3;">
+                        Password Reset Requested
+                      </h1>
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 24px;">
+                        <tr>
+                          <td height="1" style="background-color: #e5e7eb;"></td>
+                        </tr>
+                      </table>
+                      <p style="font-size: 15px; line-height: 1.6; color: #4b5563; margin: 0 0 24px 0;">
+                        Hi ${user.username || "User"},
+                      </p>
+                      <p style="font-size: 15px; line-height: 1.6; color: #4b5563; margin: 0 0 24px 0;">
+                        We received a request to recover your account on the <strong>Fair Fare</strong> app. Please use the following One-Time Password (OTP) to complete your password reset:
+                      </p>
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f9fafb; border-radius: 12px; border: 1px solid #f3f4f6; margin-bottom: 24px;">
+                        <tr>
+                          <td style="padding: 24px; text-align: center;">
+                            <span style="font-size: 12px; font-weight: 600; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 12px;">
+                              Your OTP Code
+                            </span>
+                            <span style="font-size: 32px; font-weight: 800; color: #111827; letter-spacing: 6px; display: block; font-family: Courier, monospace;">
+                              ${otp}
+                            </span>
+                          </td>
+                        </tr>
+                      </table>
+                      <p style="font-size: 14px; line-height: 1.6; color: #4b5563; margin: 0 0 16px 0;">
+                        This code is valid for <strong>5 minutes</strong>.
+                      </p>
+                      <p style="font-size: 13px; line-height: 1.6; color: #9ca3af; margin: 0;">
+                        If you did not request this change, please ignore this email. Your password will remain secure and unchanged.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="background-color: #f9fafb; padding: 24px 40px; text-align: center; border-top: 1px solid #f3f4f6;">
+                      <p style="font-size: 12px; line-height: 1.5; color: #6b7280; margin: 0 0 6px 0;">
+                        <strong>Fair Fare</strong> — The smart way to split bills and track expenses.
+                      </p>
+                      <p style="font-size: 11px; line-height: 1.5; color: #9ca3af; margin: 0;">
+                        This is an automated security notification regarding your account.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
       `,
     });
 

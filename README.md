@@ -105,11 +105,33 @@
 ## 🚀 Installation
 
 ### Prerequisites
-- Node.js (v16 or higher)
+- Node.js (v16 or higher) or Docker Desktop (Recommended)
 - MongoDB (local or Atlas)
-- npm or yarn
+- npm or yarn (if not using Docker)
 
 ### Setup Instructions
+
+#### Option A: Running with Docker (Recommended)
+
+To run the application inside Docker containers (avoiding local machine node version mismatches), follow these simple steps:
+
+> [!IMPORTANT]
+> Make sure that **Docker Desktop** is launched and running on your PC before executing the build command.
+
+1. **Launch Containers**
+   From the root repository directory (`SplitWise`), run:
+   ```bash
+   docker compose up --build
+   ```
+   This single command builds and starts the backend and frontend services in isolated containers, using virtual volumes to support **real-time hot-reloading**.
+
+2. **Access the application**
+   - Frontend: `http://localhost:5173` (with HMR enabled)
+   - Backend: `http://localhost:8000` (with nodemon hot-reloading enabled)
+
+---
+
+#### Option B: Local Installation
 
 1. **Clone the repository**
    ```bash

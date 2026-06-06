@@ -1269,7 +1269,6 @@ const updateFriendBalance = async (req, res) => {
   if (!userEmail || !friendEmail || !amount || !action || !note) {
     return res.status(400).json({ message: "Incomplete data received" });
   }
-
   const value = parseFloat(amount);
   if (isNaN(value) || value <= 0) {
     return res
@@ -1277,6 +1276,11 @@ const updateFriendBalance = async (req, res) => {
       .json({ message: "Amount must be a positive number" });
   }
 
+  if (value > 500000) {
+    return res
+      .status(400)
+      .json({ message: "Amount cannot exceed 5,00,000" });
+  }
   const session = await mongoose.startSession();
 
   try {

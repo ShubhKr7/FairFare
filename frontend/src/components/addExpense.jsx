@@ -208,8 +208,8 @@ const AddExpense = () => {
       customAmounts: splitMode === "unequally" ? amounts : {},
     };
 
-    if (totalEntered > 50000) {
-      toast.error("Amount must be smaller than 50k");
+    if (totalEntered > 500000) {
+      toast.error("Amount must be smaller than 5,00,000");
       return;
     }
 

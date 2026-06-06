@@ -355,6 +355,13 @@ const addExpenseController = async (req, res) => {
       .json({ success: false, message: "Missing required fields" });
   }
 
+  const totalEntered = parseFloat(amount);
+  if (totalEntered > 500000) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Amount cannot exceed 5,00,000" });
+  }
+
   if (involvedMembers.length === 1 && involvedMembers[0] === paidBy) {
     return res.status(400).json({
       success: false,
@@ -628,6 +635,13 @@ const addafterDeleteExpenseController = async (req, res) => {
     return res
       .status(400)
       .json({ success: false, message: "Missing required fields" });
+  }
+
+  const totalEntered = parseFloat(amount);
+  if (totalEntered > 500000) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Amount cannot exceed 5,00,000" });
   }
 
   const session = await mongoose.startSession();

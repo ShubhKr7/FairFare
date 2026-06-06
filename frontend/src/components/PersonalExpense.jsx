@@ -194,8 +194,8 @@ const PersonalExpense = () => {
       return;
     }
     const paidAmount = Math.abs(amount);
-    if (paidAmount > 50000) {
-      toast.error("Amount cannot be more than 50k");
+    if (paidAmount > 500000) {
+      toast.error("Amount cannot be more than 5,00,000");
       return;
     }
 

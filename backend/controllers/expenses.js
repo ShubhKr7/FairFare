@@ -111,6 +111,11 @@ const createPersonalExpense = async (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
+    const parsedAmount = parseFloat(amount);
+    if (parsedAmount > 500000) {
+      return res.status(400).json({ message: "Amount cannot exceed 5,00,000" });
+    }
+
     let newExpense;
 
     await session.withTransaction(async () => {
@@ -255,7 +260,13 @@ const updatePersonalExpense = async (req, res) => {
     }
 
     if (description !== undefined) expense.title = description;
-    if (amount !== undefined) expense.amount = parseFloat(Number(amount).toFixed(2));
+    if (amount !== undefined) {
+      const parsedAmount = parseFloat(amount);
+      if (parsedAmount > 500000) {
+        return res.status(400).json({ message: "Amount cannot exceed 5,00,000" });
+      }
+      expense.amount = parseFloat(Number(parsedAmount).toFixed(2));
+    }
     if (date !== undefined) expense.date = new Date(date);
 
     await expense.save();

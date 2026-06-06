@@ -602,8 +602,8 @@ const TransactionHistory = () => {
       return;
     }
     const paidAmount = Math.abs(amount);
-    if (paidAmount > 50000) {
-      toast.error("Amount cannot be more than 50k");
+    if (paidAmount > 500000) {
+      toast.error("Amount cannot be more than 5,00,000");
       return;
     }
     setShowPaidConfirm(true);
@@ -647,8 +647,8 @@ const TransactionHistory = () => {
       return;
     }
     const receivedAmount = Math.abs(amount);
-    if (receivedAmount > 50000) {
-      toast.error("Amount cannot be more than 50k");
+    if (receivedAmount > 500000) {
+      toast.error("Amount cannot be more than 5,00,000");
       return;
     }
     setShowReceivedConfirm(true);

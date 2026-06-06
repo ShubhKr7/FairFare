@@ -15,7 +15,9 @@ import {
   Trash2,
   ShieldCheck,
   Sparkles,
-  UserCheck, // Imported UserCheck
+  UserCheck,
+  Share2,
+  Copy,
 } from "lucide-react";
 import api from "../utils/api";
 import Suggestions from "./Suggestions";
@@ -39,6 +41,8 @@ const AddFriend = () => {
   const dropdownRef = useRef(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteSent, setInviteSent] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   // Debounce + suggestions
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -48,7 +52,6 @@ const AddFriend = () => {
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [suggestionsPage, setSuggestionsPage] = useState(1);
   const [hasMoreSuggestions, setHasMoreSuggestions] = useState(true);
-  const [showInviteModal, setShowInviteModal] = useState(false);
   const [loadingInvite, setLoadingInvite] = useState(false);
   const [existingFriendIds, setExistingFriendIds] = useState(new Set());
   const controllerRef = useRef(null);
@@ -362,6 +365,116 @@ const AddFriend = () => {
     }
   };
 
+  const getReferrerName = () => {
+    try {
+      const localUserStr = localStorage.getItem("user");
+      if (localUserStr) {
+        const localUser = JSON.parse(localUserStr);
+        return localUser.username || "Your friend";
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return "Your friend";
+  };
+
+  const getInviteMsg = () => {
+    const inviteLink = `https://fair-fare-phi.vercel.app/signup/${userId}`;
+    const referrerName = getReferrerName();
+    return `💸 *Fair Fare Invitation* 💸\n\nHey! 🚀 *${referrerName}* has invited you to join *Fair Fare*, the ultimate app to track and split expenses seamlessly with friends! 🤝✨\n\nNo more awkward "you owe me" conversations! 😉 Let's split bills, track trips, and stay square.\n\nClick the link below to sign up and connect automatically:\n🔗 ${inviteLink}\n\nLet's start splitting smarter! 🍕✈️🎉`;
+  };
+
+  const handleShareWhatsApp = () => {
+    const inviteMsg = getInviteMsg();
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const whatsappUrl = isMobile
+      ? `whatsapp://send?text=${encodeURIComponent(inviteMsg)}`
+      : `https://web.whatsapp.com/send?text=${encodeURIComponent(inviteMsg)}`;
+
+    if (isMobile) {
+      const w = window.open(whatsappUrl, "_blank");
+      setTimeout(() => {
+        if (!w || w.closed || typeof w.closed == 'undefined') {
+          window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(inviteMsg)}`, "_blank");
+        }
+      }, 500);
+    } else {
+      window.open(whatsappUrl, "_blank");
+    }
+  };
+
+  const handleShareTelegram = () => {
+    const inviteLink = `https://fair-fare-phi.vercel.app/signup/${userId}`;
+    const inviteMsg = getInviteMsg();
+    const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(inviteMsg)}`;
+    window.open(telegramUrl, "_blank");
+  };
+
+  const handleShareNative = async () => {
+    const inviteLink = `https://fair-fare-phi.vercel.app/signup/${userId}`;
+    const inviteMsg = getInviteMsg();
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Join Fair Fare",
+          text: inviteMsg,
+          url: inviteLink,
+        });
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          console.error("Native share failed:", err);
+        }
+      }
+    } else {
+      toast.error("Native sharing is not supported on this browser.");
+    }
+  };
+
+  const handleShareInstagram = () => {
+    const inviteMsg = getInviteMsg();
+    navigator.clipboard.writeText(inviteMsg);
+    toast.success("Invitation copied to clipboard! Opening Instagram...");
+
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    setTimeout(() => {
+      if (isMobile) {
+        window.open("instagram://sharesheet", "_blank");
+        setTimeout(() => {
+          window.open("https://instagram.com/", "_blank");
+        }, 500);
+      } else {
+        window.open("https://instagram.com/direct/inbox/", "_blank");
+      }
+    }, 1000);
+  };
+
+  const handleShareSnapchat = () => {
+    const inviteMsg = getInviteMsg();
+    navigator.clipboard.writeText(inviteMsg);
+    toast.success("Invitation copied to clipboard! Opening Snapchat...");
+
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    setTimeout(() => {
+      if (isMobile) {
+        window.open("snapchat://", "_blank");
+        setTimeout(() => {
+          window.open("https://snapchat.com/", "_blank");
+        }, 500);
+      } else {
+        window.open("https://snapchat.com/", "_blank");
+      }
+    }, 1000);
+  };
+
+  const handleCopyLink = () => {
+    const inviteMsg = getInviteMsg();
+    navigator.clipboard.writeText(inviteMsg);
+    setCopiedLink(true);
+    toast.success("Invitation copied to clipboard!");
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
+
   const handleLoadMoreSuggestions = () => {
     if (!suggestionsLoading && hasMoreSuggestions) {
       fetchFriendSuggestions(suggestionsPage + 1);
@@ -625,13 +738,13 @@ const AddFriend = () => {
                   )}
               </div>
 
-              {/* NEW: Invite via Email Button */}
+              {/* Invite via Email & Socials Button */}
               <button
-                onClick={() => setShowInviteModal(true)}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all text-xs sm:text-sm font-semibold"
+                onClick={() => setShowShareModal(true)}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-to-r from-cyan-500/15 to-indigo-500/15 border border-cyan-500/30 text-cyan-300 hover:text-cyan-200 hover:bg-gradient-to-r hover:from-cyan-500/20 hover:to-indigo-500/20 transition-all text-xs sm:text-sm font-bold shadow-lg"
               >
-                <Mail className="w-4 h-4" />
-                Can't find them? Invite via Email
+                <UserPlus className="w-4 h-4" />
+                Invite Friends to Fair Fare
               </button>
             </div>
 
@@ -738,83 +851,82 @@ const AddFriend = () => {
         </div>
       </motion.div>
 
-      {/* --- EMAIL INVITE MODAL --- */}
-      {showInviteModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      {/* --- UNIFIED INVITE MODAL --- */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fade-in">
           <div
             className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
             onClick={() => {
-              setShowInviteModal(false);
-              setInviteSent(false); // Reset success state on close
+              setShowShareModal(false);
+              setInviteSent(false);
             }}
           ></div>
           <div className="relative w-full max-w-md bg-slate-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
-            <div className="p-8">
-              {/* --- CLOSE BUTTON --- */}
-              {!loadingInvite && (
-                <button
-                  onClick={() => {
-                    setShowInviteModal(false);
-                    setInviteSent(false);
-                  }}
-                  className="absolute top-6 right-6 p-2 rounded-full hover:bg-white/5 text-slate-500 hover:text-white transition-colors z-10"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              )}
+            <div className="p-6 sm:p-8">
+              {/* Close Button */}
+              <button
+                onClick={() => {
+                  setShowShareModal(false);
+                  setInviteSent(false);
+                }}
+                className="absolute top-6 right-6 p-2 rounded-full hover:bg-white/5 text-slate-500 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
 
-              {loadingInvite ? (
-                /* --- LOADING STATE --- */
-                <div className="py-12 flex flex-col items-center justify-center space-y-4 animate-pulse">
-                  <div className="relative">
-                    <div className="w-16 h-16 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin"></div>
-                    <Mail className="absolute inset-0 m-auto w-6 h-6 text-cyan-400" />
-                  </div>
-                  <div className="text-center">
-                    <h3 className="text-lg font-bold text-white">
-                      Sending Invite
-                    </h3>
-                    <p className="text-slate-400 text-sm">
-                      Deploying magic link...
-                    </p>
-                  </div>
+              <div className="mb-6">
+                <div className="inline-flex items-center justify-center gap-2 mb-3 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20">
+                  <UserPlus className="w-3.5 h-3.5 text-indigo-400" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">
+                    Invite Friends
+                  </span>
                 </div>
-              ) : inviteSent ? (
-                /* --- SUCCESS STATE --- */
-                <div className="py-12 flex flex-col items-center justify-center text-center">
-                  <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center mb-4 animate-bounce">
-                    <Check className="w-8 h-8 text-emerald-400" />
-                  </div>
-                  <h3 className="text-xl font-bold text-white">Invite Sent!</h3>
-                  <p className="text-slate-400 text-sm mt-2 mb-8">
-                    {inviteEmail} has been invited.
-                  </p>
-                  <button
-                    onClick={() => {
-                      setInviteSent(false);
-                      setInviteEmail("");
-                    }}
-                    className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold rounded-lg transition-all"
-                  >
-                    Send Another
-                  </button>
-                </div>
-              ) : (
-                /* --- INPUT STATE (DEFAULT) --- */
-                <>
-                  <div className="mb-6">
-                    <h3 className="text-xl font-bold text-white">
-                      Invite via Email
-                    </h3>
-                    <p className="text-slate-400 text-sm mt-1">
-                      Send a magic link to join your squad.
-                    </p>
-                  </div>
+                <h3 className="text-xl font-bold text-white">Invite to Fair Fare</h3>
+                <p className="text-slate-400 text-xs sm:text-sm mt-1">
+                  Invite your friends to split expenses and track trips.
+                </p>
+              </div>
 
-                  <div className="space-y-4">
+              {/* SECTION 1: Invite via Email */}
+              <div className="mb-6 bg-slate-950/40 border border-white/5 rounded-2xl p-4 sm:p-5">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-3">
+                  Option 1: Direct Email Invite
+                </span>
+
+                {loadingInvite ? (
+                  <div className="py-8 flex flex-col items-center justify-center space-y-4">
+                    <div className="relative w-20 h-20 flex items-center justify-center">
+                      <div className="premium-loader-glow"></div>
+                      <div className="premium-loader-ring absolute"></div>
+                      <Mail className="w-6 h-6 text-cyan-400 premium-loader-icon absolute" />
+                    </div>
+                    <div className="text-center space-y-1">
+                      <p className="text-xs font-bold text-white tracking-wide">Sending Magic Link</p>
+                      <p className="text-[10px] text-cyan-400/80 animate-pulse font-medium">Deploying invitation email...</p>
+                    </div>
+                  </div>
+                ) : inviteSent ? (
+                  <div className="py-2 flex flex-col items-center justify-center text-center">
+                    <div className="w-10 h-10 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center mb-2 text-emerald-400">
+                      <Check className="w-5 h-5" />
+                    </div>
+                    <p className="text-sm font-bold text-white">Invite Sent Successfully!</p>
+                    <p className="text-xs text-slate-400 mt-1 mb-3">{inviteEmail}</p>
+                    <button
+                      onClick={() => {
+                        setInviteSent(false);
+                        setInviteEmail("");
+                      }}
+                      className="px-4 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold rounded-lg transition-all"
+                    >
+                      Send Another
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
                     <div className="relative group">
                       <Mail
-                        className={`absolute left-4 top-5 w-5 h-5 transition-colors ${inviteEmail &&
+                        className={`absolute left-3 top-3.5 w-4 h-4 transition-colors ${inviteEmail &&
                           !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteEmail)
                           ? "text-red-400"
                           : "text-slate-500 group-focus-within:text-cyan-400"
@@ -825,33 +937,26 @@ const AddFriend = () => {
                         placeholder="friend@example.com"
                         value={inviteEmail}
                         onChange={(e) => setInviteEmail(e.target.value)}
-                        className={`w-full bg-slate-950 border rounded-xl py-4 pl-12 pr-12 text-white focus:outline-none transition-all ${inviteEmail &&
+                        className={`w-full bg-slate-950 border rounded-xl py-3 pl-9 pr-9 text-xs text-white focus:outline-none transition-all ${inviteEmail &&
                           !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteEmail)
                           ? "border-red-500/50 focus:border-red-500"
                           : "border-white/10 focus:border-cyan-500/50"
                           }`}
                       />
-
-                      {/* --- CLEAR (X) OPTION --- */}
                       {inviteEmail && (
                         <button
                           onClick={() => setInviteEmail("")}
-                          className="absolute right-4 top-5 p-0.5 rounded-full bg-white/5 hover:bg-white/20 text-slate-500 hover:text-white transition-all duration-200"
-                          title="Clear input"
+                          className="absolute right-3 top-3.5 p-0.5 rounded-full bg-white/5 hover:bg-white/20 text-slate-500 hover:text-white transition-all"
                         >
-                          <X className="w-4 h-4" />
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       )}
-
-                      {/* Validation Message */}
-                      {inviteEmail &&
-                        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteEmail) && (
-                          <p className="text-[10px] text-red-400 mt-1.5 ml-1 font-medium animate-in fade-in slide-in-from-top-1">
-                            Please enter a valid email address
-                          </p>
-                        )}
                     </div>
-
+                    {inviteEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteEmail) && (
+                      <p className="text-[10px] text-red-400 ml-1">
+                        Please enter a valid email address
+                      </p>
+                    )}
                     <button
                       onClick={handleSendInvite}
                       disabled={
@@ -859,14 +964,100 @@ const AddFriend = () => {
                         !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteEmail) ||
                         loadingInvite
                       }
-                      className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                      className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2"
                     >
-                      <Send className="w-4 h-4" />
-                      Send Invitation
+                      <Send className="w-3.5 h-3.5" />
+                      Send Invite
                     </button>
                   </div>
-                </>
-              )}
+                )}
+              </div>
+
+              {/* Divider */}
+              <div className="relative flex items-center mb-6">
+                <div className="flex-grow border-t border-white/5"></div>
+                <span className="flex-shrink-0 mx-4 text-slate-500 text-[10px] font-bold uppercase tracking-wider">
+                  OR SHARE DIRECT LINK
+                </span>
+                <div className="flex-grow border-t border-white/5"></div>
+              </div>
+
+              {/* SECTION 2: Share via Socials */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {/* System Share (If supported) */}
+                {navigator.share && (
+                  <button
+                    onClick={handleShareNative}
+                    className="flex flex-col items-center justify-center p-3 rounded-2xl bg-white/5 border border-white/5 hover:border-cyan-500/30 hover:bg-cyan-500/5 transition-all text-center gap-1.5 group"
+                  >
+                    <div className="p-2.5 rounded-full bg-cyan-500/10 text-cyan-400 group-hover:scale-110 transition-transform">
+                      <Share2 className="w-4.5 h-4.5" />
+                    </div>
+                    <span className="text-[10px] font-semibold text-slate-300">Share via System</span>
+                  </button>
+                )}
+
+                {/* WhatsApp */}
+                <button
+                  onClick={handleShareWhatsApp}
+                  className="flex flex-col items-center justify-center p-3 rounded-2xl bg-white/5 border border-white/5 hover:border-[#25D366]/30 hover:bg-[#25D366]/5 transition-all text-center gap-1.5 group"
+                >
+                  <div className="w-10 h-10 rounded-full bg-[#25D366]/10 group-hover:scale-110 transition-transform flex items-center justify-center">
+                    <img src="/app_logos/whatsapp.svg" alt="WhatsApp" className="w-5 h-5 object-contain" />
+                  </div>
+                  <span className="text-[10px] font-semibold text-slate-300">WhatsApp</span>
+                </button>
+
+                {/* Telegram */}
+                <button
+                  onClick={handleShareTelegram}
+                  className="flex flex-col items-center justify-center p-3 rounded-2xl bg-white/5 border border-white/5 hover:border-[#229ED9]/30 hover:bg-[#229ED9]/5 transition-all text-center gap-1.5 group"
+                >
+                  <div className="w-10 h-10 rounded-full bg-[#229ED9]/10 group-hover:scale-110 transition-transform flex items-center justify-center">
+                    <img src="/app_logos/telegram.svg" alt="Telegram" className="w-5 h-5 object-contain" />
+                  </div>
+                  <span className="text-[10px] font-semibold text-slate-300">Telegram</span>
+                </button>
+
+                {/* Instagram */}
+                <button
+                  onClick={handleShareInstagram}
+                  className="flex flex-col items-center justify-center p-3 rounded-2xl bg-white/5 border border-white/5 hover:border-[#E1306C]/30 hover:bg-[#E1306C]/5 transition-all text-center gap-1.5 group"
+                >
+                  <div className="w-10 h-10 rounded-full bg-[#E1306C]/10 group-hover:scale-110 transition-transform flex items-center justify-center">
+                    <img src="/app_logos/instagram.svg" alt="Instagram" className="w-5 h-5 object-contain" />
+                  </div>
+                  <span className="text-[10px] font-semibold text-slate-300">Instagram</span>
+                </button>
+
+                {/* Snapchat */}
+                <button
+                  onClick={handleShareSnapchat}
+                  className="flex flex-col items-center justify-center p-3 rounded-2xl bg-white/5 border border-white/5 hover:border-[#FFFC00]/30 hover:bg-[#FFFC00]/5 transition-all text-center gap-1.5 group"
+                >
+                  <div className="w-10 h-10 rounded-full bg-[#FFFC00]/10 group-hover:scale-110 transition-transform flex items-center justify-center">
+                    <img src="/app_logos/snapchat.png" alt="Snapchat" className="w-5 h-5 object-contain" />
+                  </div>
+                  <span className="text-[10px] font-semibold text-slate-300">Snapchat</span>
+                </button>
+
+                {/* Copy Invite Link */}
+                <button
+                  onClick={handleCopyLink}
+                  className="flex flex-col items-center justify-center p-3 rounded-2xl bg-white/5 border border-white/5 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all text-center gap-1.5 group"
+                >
+                  <div className={`p-2.5 rounded-full transition-transform group-hover:scale-110 ${copiedLink ? 'bg-emerald-500/10 text-emerald-400' : 'bg-indigo-500/10 text-indigo-400'}`}>
+                    {copiedLink ? <Check className="w-4.5 h-4.5" /> : <Copy className="w-4.5 h-4.5" />}
+                  </div>
+                  <span className="text-[10px] font-semibold text-slate-300">{copiedLink ? "Copied!" : "Copy Link"}</span>
+                </button>
+              </div>
+
+              <div className="text-center mt-3">
+                <span className="text-[10px] text-slate-500">
+                  Tip: Copying the link also copies the full invitation message text!
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -879,6 +1070,40 @@ const AddFriend = () => {
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+        
+        .premium-loader-ring {
+          border: 3px solid rgba(6, 182, 212, 0.1);
+          border-top: 3px solid #06b6d4;
+          border-right: 3px solid #3b82f6;
+          border-radius: 50%;
+          width: 56px;
+          height: 56px;
+          animation: premium-spin 1s cubic-bezier(0.55, 0.15, 0.45, 0.85) infinite;
+          filter: drop-shadow(0 0 8px rgba(6, 182, 212, 0.5));
+        }
+        .premium-loader-icon {
+          animation: premium-float 2s ease-in-out infinite;
+        }
+        .premium-loader-glow {
+          position: absolute;
+          width: 80px;
+          height: 80px;
+          background: radial-gradient(circle, rgba(6, 182, 212, 0.15) 0%, transparent 70%);
+          animation: premium-pulse 2s infinite ease-in-out;
+          pointer-events: none;
+        }
+        @keyframes premium-spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes premium-float {
+          0%, 100% { transform: translateY(0) scale(1); }
+          50% { transform: translateY(-4px) scale(1.1); filter: drop-shadow(0 4px 6px rgba(6, 182, 212, 0.4)); }
+        }
+        @keyframes premium-pulse {
+          0%, 100% { transform: scale(0.8); opacity: 0.5; }
+          50% { transform: scale(1.2); opacity: 1; }
+        }
       `}</style>
     </div>
   );

@@ -913,12 +913,90 @@ const inviteFriend = async (req, res) => {
         subject: `Heartfelt invitation from ${user.username}`,
         text: `${user.username} has invited you to join Fair Fare. Join here: ${inviteLink}`,
         html: `
-              <h1>Hi,</h1>
-              <p>Your friend <strong>${user.username}</strong> has added you as a friend on the Fair Fare App.</p>
-              <p>Please click on the link below to join:</p>
-              <p><a href="${inviteLink}">Join Fair Fare</a></p>
-              <p>Thanks,<br/>Fair Fare Team</p>
-            `,
+          <!DOCTYPE html>
+          <html lang="en">
+          <body style="margin: 0; padding: 0; background-color: #f6f9fc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f6f9fc; padding: 40px 0;">
+              <tr>
+                <td align="center">
+                  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 500px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04); border: 1px solid #eef2f6;">
+                    <tr>
+                      <td height="6" style="background: linear-gradient(90deg, #4f46e5 0%, #d946ef 100%);"></td>
+                    </tr>
+                    <tr>
+                      <td align="center" style="padding: 32px 32px 16px 32px;">
+                        <table border="0" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td align="center" style="background: linear-gradient(135deg, #4f46e5 0%, #d946ef 100%); border-radius: 12px; width: 44px; height: 44px; text-align: center; vertical-align: middle;">
+                              <span style="font-size: 18px; font-weight: 800; color: #ffffff; display: block; line-height: 44px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">FF</span>
+                            </td>
+                            <td style="font-size: 20px; font-weight: 700; color: #1f2937; padding-left: 12px; letter-spacing: -0.5px;">
+                              Fair Fare
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 20px 40px 32px 40px;">
+                        <h1 style="font-size: 22px; font-weight: 700; color: #111827; margin: 0 0 16px 0; text-align: center; line-height: 1.3;">
+                          You've Been Invited!
+                        </h1>
+                        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 24px;">
+                          <tr>
+                            <td height="1" style="background-color: #e5e7eb;"></td>
+                          </tr>
+                        </table>
+                        <p style="font-size: 15px; line-height: 1.6; color: #4b5563; margin: 0 0 24px 0;">
+                          Hi there,
+                        </p>
+                        <p style="font-size: 15px; line-height: 1.6; color: #4b5563; margin: 0 0 24px 0;">
+                          Your friend <strong style="color: #1f2937;">${user.username}</strong> has added you as a friend on the <strong>Fair Fare</strong> app and sent you an invitation to join.
+                        </p>
+                        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f9fafb; border-radius: 12px; border: 1px solid #f3f4f6; margin-bottom: 32px;">
+                          <tr>
+                            <td style="padding: 20px; text-align: center;">
+                              <span style="font-size: 12px; font-weight: 600; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 8px;">
+                                From ${user.username}
+                              </span>
+                              <span style="font-size: 14px; color: #374151; font-style: italic; display: block; line-height: 1.5;">
+                                "Hey! I'm using Fair Fare to track and split our expenses smoothly. Join me so we can settle up easily!"
+                              </span>
+                            </td>
+                          </tr>
+                        </table>
+                        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 28px;">
+                          <tr>
+                            <td align="center">
+                              <a href="${inviteLink}" target="_blank" style="background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); color: #ffffff; text-decoration: none; padding: 14px 28px; font-size: 15px; font-weight: 600; border-radius: 10px; display: inline-block; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25); text-align: center;">
+                                Accept Invitation &amp; Join
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                        <p style="font-size: 12px; line-height: 1.5; color: #9ca3af; text-align: center; margin: 0;">
+                          If the button above doesn't work, copy and paste this link in your browser:<br>
+                          <a href="${inviteLink}" style="color: #4f46e5; text-decoration: none; word-break: break-all;">${inviteLink}</a>
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="background-color: #f9fafb; padding: 24px 40px; text-align: center; border-top: 1px solid #f3f4f6;">
+                        <p style="font-size: 12px; line-height: 1.5; color: #6b7280; margin: 0 0 6px 0;">
+                          <strong>Fair Fare</strong> — The smart way to split bills and track expenses.
+                        </p>
+                        <p style="font-size: 11px; line-height: 1.5; color: #9ca3af; margin: 0;">
+                          You received this because someone invited you to use Fair Fare. If you do not wish to create an account, you can safely ignore this email.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </body>
+          </html>
+        `,
       });
       // Optionally log or track successful invite sends
     } catch (err) {

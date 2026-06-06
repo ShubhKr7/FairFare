@@ -238,16 +238,11 @@ const ReferralSignUp = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   type="email"
                   placeholder="name@example.com"
-                  // Use readOnly if the email is in the URL
-                  readOnly={!!searchParams.get("email")}
-                  className={`w-full border rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none transition-all ${searchParams.get("email")
-                    ? "bg-white/5 border-white/5 cursor-not-allowed opacity-70" // Style for auto-filled state
-                    : "bg-white/5 border-white/10 focus:bg-white/10 focus:border-white/20"
-                    }`}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none focus:bg-white/10 focus:border-white/20 transition-all"
                 />
-                {searchParams.get("email") && (
+                {searchParams.get("email") && email === searchParams.get("email") && (
                   <p className="text-[10px] text-cyan-400/60 ml-1">
-                    Email linked to your invitation
+                    Pre-filled from invitation link
                   </p>
                 )}
               </div>

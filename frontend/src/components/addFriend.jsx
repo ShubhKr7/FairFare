@@ -17,14 +17,6 @@ import {
   Sparkles,
   UserCheck, // Imported UserCheck
 } from "lucide-react";
-
-const handleScrollTop = () => {
-  window.scrollTo({
-    top: 0,
-    left: 0,
-    behavior: "smooth",
-  });
-};
 import api from "../utils/api";
 import Suggestions from "./Suggestions";
 import { motion } from "framer-motion";
@@ -66,6 +58,14 @@ const AddFriend = () => {
   useEffect(() => {
     handleScrollTop();
   }, []);
+
+  const handleScrollTop = () => {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "smooth",
+    });
+  };
 
   // 1. Fetch Request & Existing Friends
   useEffect(() => {

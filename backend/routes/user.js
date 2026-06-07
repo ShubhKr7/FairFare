@@ -29,6 +29,7 @@ import {
   checkFriendRequestStatus,
   publicUserDetails,
   googleAuth,
+  checkUsernameAvailability,
 } from "../controllers/user.js";
 import upload from "../middleware/multer.js";
 import { auth } from "../middleware/auth.js";
@@ -63,6 +64,7 @@ router.put("/:id", auth, updateUserProfile);
 router.put('/:id/photo', upload.single('profilePhoto'), uploadProfilePhoto);
 
 //GET routes
+router.get("/check-username/:username", checkUsernameAvailability);
 router.get('/search', auth, getUsernames);
 router.get("/friend-requests/:userId", auth, listFriendRequests);
 router.get("/friend-request-status/:fromUserId/:toUserId", auth, checkFriendRequestStatus);

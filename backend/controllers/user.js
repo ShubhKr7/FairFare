@@ -1,6 +1,7 @@
 import { User, Group, Expense, Terms, FriendRequest, Notification } from "../models/schema.js";
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
+import { bloomFilter } from "../utils/bloomFilter.js";
 import {
   sendOneNotification,
   sendMultipleNotifications,
@@ -66,7 +67,14 @@ const sendOtp = async (req, res) => {
   }
 
   const existingUser = await User.findOne({ email });
-  const existingUsername = await User.findOne({ username });
+  
+  let existingUsername = null;
+  if (!bloomFilter.test(username)) {
+    console.log(`🌸 [BloomFilter] Username check for "${username}" (send-otp): NOT in filter (Definitely Available) - DB check skipped.`);
+  } else {
+    console.log(`🔍 [BloomFilter] Username check for "${username}" (send-otp): IN filter (Possibly Taken) -> querying DB to verify.`);
+    existingUsername = await User.findOne({ username });
+  }
 
   if (existingUsername) {
     return res.status(400).json({ message: "Username already taken" });
@@ -132,7 +140,14 @@ const verifyOtp = async (req, res) => {
     }
 
     // Check if username is already taken
-    const existingUsername = await User.findOne({ username });
+    let existingUsername = null;
+    if (!bloomFilter.test(username)) {
+      console.log(`🌸 [BloomFilter] Username check for "${username}" (verify-otp): NOT in filter (Definitely Available) - DB check skipped.`);
+    } else {
+      console.log(`🔍 [BloomFilter] Username check for "${username}" (verify-otp): IN filter (Possibly Taken) -> querying DB to verify.`);
+      existingUsername = await User.findOne({ username });
+    }
+
     if (existingUsername) {
       return res.status(409).json({
         message: "Username already taken. Please choose a different username."
@@ -151,6 +166,10 @@ const verifyOtp = async (req, res) => {
       email,
       password: cleanPassword, // schema middleware handles hashing
     });
+
+    // Add new username to Bloom Filter
+    bloomFilter.add(cleanUsername);
+    console.log(`➕ [BloomFilter] Added newly registered username "${cleanUsername}" to Bloom Filter.`);
 
     if (referId) {
       const referUser = await User.findById(referId);
@@ -849,14 +868,37 @@ const updateUserProfile = async (req, res) => {
       return res.status(400).json({ message: "Invalid user ID" });
     }
 
-    const updateFields = { username, upiId, gender };
+    const existingUser = await User.findById(userId);
+    if (!existingUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const updateFields = { upiId, gender };
+
+    if (username) {
+      const cleanUsername = String(username).trim();
+      if (cleanUsername !== existingUser.username) {
+        // Check availability
+        let taken = null;
+        if (!bloomFilter.test(cleanUsername)) {
+          console.log(`🌸 [BloomFilter] Username check for "${cleanUsername}" (update-profile): NOT in filter (Definitely Available) - DB check skipped.`);
+        } else {
+          console.log(`🔍 [BloomFilter] Username check for "${cleanUsername}" (update-profile): IN filter (Possibly Taken) -> querying DB to verify.`);
+          taken = await User.findOne({ username: cleanUsername });
+        }
+
+        if (taken) {
+          return res.status(400).json({ message: "Username already taken" });
+        }
+        updateFields.username = cleanUsername;
+      }
+    }
 
     // If a predefined avatar URL was sent, save it directly as profilePhotoUrl
     // This avoids uploading to Cloudinary for built-in avatars
     if (avatarUrl) {
       // Delete previous Cloudinary image if it exists
-      const existingUser = await User.findById(userId);
-      if (existingUser?.profilePhotoId) {
+      if (existingUser.profilePhotoId) {
         try {
           await cloudinary.uploader.destroy(existingUser.profilePhotoId);
         } catch (err) {
@@ -871,6 +913,11 @@ const updateUserProfile = async (req, res) => {
 
     if (!updatedUser) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    if (username && updateFields.username) {
+      bloomFilter.add(updateFields.username);
+      console.log(`➕ [BloomFilter] Added updated username "${updateFields.username}" to Bloom Filter.`);
     }
 
     res.status(200).json({
@@ -1898,11 +1945,17 @@ const googleAuth = async (req, res) => {
     let uniqueUsername = baseUsername;
     let counter = 1;
 
-    // Ensure unique username
-    while (await User.findOne({ username: uniqueUsername })) {
+    // Ensure unique username using Bloom Filter
+    while (bloomFilter.test(uniqueUsername)) {
+      console.log(`🔍 [BloomFilter] Username uniqueness loop check for "${uniqueUsername}" (google-auth): IN filter (Possibly Taken) -> querying DB to verify.`);
+      const exists = await User.findOne({ username: uniqueUsername });
+      if (!exists) {
+        break; // False positive, the username is actually available!
+      }
       uniqueUsername = `${baseUsername}${counter}`;
       counter++;
     }
+    console.log(`🌸 [BloomFilter] Username check for final "${uniqueUsername}" (google-auth): NOT in filter (Definitely Available) - DB check skipped.`);
 
     // Generate a secure random password for Google-auth users
     const crypto = await import('crypto');
@@ -1916,6 +1969,10 @@ const googleAuth = async (req, res) => {
       authProvider: "google",
       profilePhotoUrl: picture || null,
     });
+
+    // Add to Bloom Filter
+    bloomFilter.add(uniqueUsername);
+    console.log(`➕ [BloomFilter] Added Google signup username "${uniqueUsername}" to Bloom Filter.`);
 
     if (referId) {
       const referUser = await User.findById(referId);
@@ -1950,6 +2007,37 @@ const googleAuth = async (req, res) => {
   }
 };
 
+const checkUsernameAvailability = async (req, res) => {
+  let { username } = req.params;
+  try {
+    if (!username || typeof username !== "string") {
+      return res.status(400).json({ message: "username parameter is required" });
+    }
+    username = username.trim();
+    if (username.length === 0) {
+      return res.status(400).json({ message: "username must not be empty" });
+    }
+
+    // Check Bloom Filter first
+    if (!bloomFilter.test(username)) {
+      console.log(`🌸 [BloomFilter] Public availability check for "${username}": NOT in filter (Definitely Available) - DB check skipped.`);
+      return res.status(200).json({ available: true });
+    }
+
+    // Bloom filter says it might exist, check DB
+    console.log(`🔍 [BloomFilter] Public availability check for "${username}": IN filter (Possibly Taken) -> querying DB to verify.`);
+    const existing = await User.findOne({ username });
+    if (existing) {
+      return res.status(200).json({ available: false });
+    }
+
+    return res.status(200).json({ available: true });
+  } catch (error) {
+    console.error("Error checking username availability:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 export {
   sendOtp,
   userLogin,
@@ -1980,4 +2068,5 @@ export {
   checkFriendRequestStatus,
   publicUserDetails,
   googleAuth,
+  checkUsernameAvailability,
 };

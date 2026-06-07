@@ -123,8 +123,40 @@ const SignUp = () => {
   const [termsContent, setTermsContent] = useState(null);
   const [privacyContent, setPrivacyContent] = useState(null);
   const [loadingDocs, setLoadingDocs] = useState(true);
+  const [usernameAvailable, setUsernameAvailable] = useState(null);
+  const [checkingUsername, setCheckingUsername] = useState(false);
 
   const navigate = useNavigate();
+
+  // Debounced real-time username availability check
+  useEffect(() => {
+    if (!username) {
+      setUsernameAvailable(null);
+      setCheckingUsername(false);
+      return;
+    }
+
+    if (username.length < 3) {
+      setUsernameAvailable(null);
+      setCheckingUsername(false);
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      setCheckingUsername(true);
+      try {
+        const response = await axios.get(`${API_BASE}/user/check-username/${encodeURIComponent(username)}`);
+        setUsernameAvailable(response.data.available);
+      } catch (error) {
+        console.error("Error checking username availability:", error);
+        setUsernameAvailable(null);
+      } finally {
+        setCheckingUsername(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [username]);
 
   useEffect(() => {
     handleScrollTop();
@@ -200,6 +232,16 @@ const SignUp = () => {
   const handleOtpSend = async () => {
     if (!email || !username || !password) {
       toast.error("Please fill in all fields.");
+      return;
+    }
+
+    if (usernameAvailable === false) {
+      toast.error("Username already taken. Please choose another one.");
+      return;
+    }
+
+    if (checkingUsername) {
+      toast.error("Still checking username availability. Please wait.");
       return;
     }
 
@@ -388,6 +430,15 @@ const SignUp = () => {
                   placeholder="John Doe"
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none focus:bg-white/10 focus:border-white/20 transition-all"
                 />
+                {checkingUsername && (
+                  <p className="text-[11px] text-indigo-400/80 ml-1 transition-all">Checking availability...</p>
+                )}
+                {!checkingUsername && usernameAvailable === true && (
+                  <p className="text-[11px] text-emerald-400/90 ml-1 transition-all">✓ Username is available</p>
+                )}
+                {!checkingUsername && usernameAvailable === false && (
+                  <p className="text-[11px] text-rose-400/90 ml-1 transition-all">✗ Username already taken</p>
+                )}
               </div>
 
               {/* Email */}

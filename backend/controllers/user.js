@@ -1857,14 +1857,59 @@ const uploadProfilePhoto = async (req, res) => {
     }
 
     // Update user document directly
-    const updatedUser = await User.findByIdAndUpdate(
+    await User.findByIdAndUpdate(
       id,
       {
         profilePhotoUrl: result.secure_url,
         profilePhotoId: result.public_id,
-      },
-      { new: true, select: "-password" } // return updated doc and exclude password
+      }
     );
+
+    // Fetch and populate details exactly as in userDetails
+    const updatedUser = await User.findById(id)
+      .populate({
+        path: "friends.friend",
+        select: "username email upiId profilePhotoUrl",
+      })
+      .populate({
+        path: "recentExpense",
+        options: { sort: { createdAt: -1 } },
+        select: "title amount paidBy owedBy createdAt category subcategory",
+        populate: [
+          { path: "paidBy", select: "username email" },
+          { path: "owedBy.user", select: "username email" },
+          { path: "group", select: "name description" },
+        ],
+      })
+      .populate({
+        path: "groups",
+        select:
+          "name description tripTotal from to createdAt updatedAt members",
+        options: { sort: { updatedAt: -1 }, limit: 3 },
+      })
+      .select({
+        username: 1,
+        email: 1,
+        upiId: 1,
+        aiChatUsage: 1,
+        friends: 1,
+        recentExpense: { $slice: -3 },
+        requests: 1,
+        fcmToken: 1,
+        profilePhotoUrl: 1,
+        gender: 1,
+        updatedAt: 1,
+      })
+      .lean();
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Filter out null friends (where the friend document was deleted)
+    if (updatedUser.friends) {
+      updatedUser.friends = updatedUser.friends.filter(f => f.friend !== null);
+    }
 
     res.status(200).json({ user: updatedUser });
   } catch (err) {

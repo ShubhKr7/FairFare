@@ -134,8 +134,8 @@ const AppLayout = () => {
         onAccept={handleTermsAccept}
       />
 
-      {/* Bottom navbar — only on protected routes */}
-      {showNavbar && (
+      {/* Bottom navbar — only on protected routes and when terms popup is hidden */}
+      {showNavbar && !showTerms && (
         <>
           <BottomNavbar onAddClick={() => setShowQuickExpense(true)} />
 

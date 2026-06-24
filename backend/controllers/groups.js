@@ -290,6 +290,23 @@ const getGroupExpenses = async (req, res) => {
     const query = { group: groupId };
     if (cursor) query.createdAt = { $lt: cursor };
 
+    if (req.query.participants) {
+      const participantsArray = req.query.participants.split(',');
+      if (participantsArray.length > 0) {
+        query.$and = participantsArray.map(pid => ({
+          $or: [
+            { paidBy: pid },
+            { 
+              $and: [
+                { "owedBy.user": pid },
+                { owedBy: { $size: 1 } }
+              ] 
+            }
+          ]
+        }));
+      }
+    }
+
     const expenses = await Expense.find(query)
       .sort({ createdAt: -1 })
       .limit(limit)

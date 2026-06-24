@@ -44,6 +44,7 @@ const TripDetails = () => {
   const [tripDetails, setTripDetails] = useState(null); // Store trip details
   const [loading, setLoading] = useState(true); // Loading state for the GET request
   const [expenses, setExpenses] = useState([]);
+  const [selectedMembers, setSelectedMembers] = useState([]);
   const [showLeaveConfirmation, setShowLeaveConfirmation] = useState(false);
   const [showArchiveConfirmation, setShowArchiveConfirmation] = useState(false);
   const [showBannerDeleteConfirm, setShowBannerDeleteConfirm] = useState(false);
@@ -240,7 +241,7 @@ const TripDetails = () => {
         observer.unobserve(loaderRef.current);
       }
     };
-  }, [loaderRef.current, hasMore, loadingExpenses]);
+  }, [loaderRef.current, hasMore, loadingExpenses, cursor, selectedMembers, expenses]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -254,19 +255,35 @@ const TripDetails = () => {
 
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
-  }, [cursor, hasMore, loadingExpenses]);
+  }, [cursor, hasMore, loadingExpenses, selectedMembers, expenses]);
 
-  const loadExpenses = async () => {
-    if (!hasMore || loadingExpenses) return;
+  useEffect(() => {
+    // Reset and fetch when selected members filter changes
+    loadExpenses(true);
+  }, [selectedMembers]);
+
+  const loadExpenses = async (reset = false) => {
+    if (!reset && (!hasMore || loadingExpenses)) return;
 
     setLoadingExpenses(true);
 
     try {
+      const currentCursor = reset ? null : cursor;
+      const params = { limit: 20, cursor: currentCursor };
+
+      if (selectedMembers.length > 0) {
+        params.participants = selectedMembers.join(',');
+      }
+
       const res = await api.get(`${API_BASE}/group/${tripId}/expenses`, {
-        params: { limit: 20, cursor },
+        params,
       });
 
-      setExpenses([...expenses, ...res.data.expenses]);
+      if (reset) {
+        setExpenses(res.data.expenses);
+      } else {
+        setExpenses((prev) => [...prev, ...res.data.expenses]);
+      }
       setCursor(res.data.nextCursor);
       setHasMore(Boolean(res.data.nextCursor));
     } catch (err) {
@@ -415,11 +432,10 @@ const TripDetails = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowArchiveConfirmation(true)}
-              className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors uppercase tracking-wider border border-transparent ${
-                isArchived
+              className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors uppercase tracking-wider border border-transparent ${isArchived
                   ? "text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500/20"
                   : "text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/20"
-              }`}
+                }`}
             >
               {isArchived ? "Unarchive" : "Archive"}
             </button>
@@ -755,6 +771,33 @@ const TripDetails = () => {
               </div>
             )}
 
+            {/* Filter by Members */}
+            {members.length > 0 && (
+              <div className="flex overflow-x-auto gap-2 pb-4 mb-2 custom-scrollbar">
+                {members.map((member) => {
+                  const isSelected = selectedMembers.includes(member._id);
+                  return (
+                    <button
+                      key={member._id}
+                      onClick={() => {
+                        setSelectedMembers((prev) =>
+                          prev.includes(member._id)
+                            ? prev.filter((id) => id !== member._id)
+                            : [...prev, member._id]
+                        );
+                      }}
+                      className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${isSelected
+                          ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-900/20"
+                          : "bg-zinc-800/50 border-white/10 text-zinc-400 hover:text-white hover:bg-zinc-800"
+                        }`}
+                    >
+                      {member.username}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             <div className="space-y-4 min-h-[300px]">
               {expenses.length === 0 ? (
                 <div className="h-64 flex flex-col items-center justify-center border-2 border-dashed border-zinc-800 rounded-3xl bg-zinc-900/20 text-center p-8">
@@ -837,13 +880,11 @@ const TripDetails = () => {
         {/* --- ARCHIVE / UNARCHIVE CONFIRMATION MODAL --- */}
         {showArchiveConfirmation && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-            <div className={`bg-zinc-900 p-6 rounded-2xl max-w-sm w-full shadow-2xl border ${
-              isArchived ? "border-emerald-500/30 shadow-emerald-900/10" : "border-amber-500/30 shadow-amber-900/10"
-            }`}>
-              {/* Icon */}
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 border ${
-                isArchived ? "bg-emerald-500/10 border-emerald-500/20" : "bg-amber-500/10 border-amber-500/20"
+            <div className={`bg-zinc-900 p-6 rounded-2xl max-w-sm w-full shadow-2xl border ${isArchived ? "border-emerald-500/30 shadow-emerald-900/10" : "border-amber-500/30 shadow-amber-900/10"
               }`}>
+              {/* Icon */}
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 border ${isArchived ? "bg-emerald-500/10 border-emerald-500/20" : "bg-amber-500/10 border-amber-500/20"
+                }`}>
                 <svg className={`w-6 h-6 ${isArchived ? "text-emerald-400" : "text-amber-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   {isArchived ? (
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -876,11 +917,10 @@ const TripDetails = () => {
                 <button
                   onClick={handleToggleArchive}
                   disabled={isArchiving}
-                  className={`flex-1 py-2.5 rounded-lg text-white font-bold shadow-lg transition-all disabled:opacity-50 ${
-                    isArchived
+                  className={`flex-1 py-2.5 rounded-lg text-white font-bold shadow-lg transition-all disabled:opacity-50 ${isArchived
                       ? "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/20"
                       : "bg-amber-600 hover:bg-amber-500 shadow-amber-900/20"
-                  }`}
+                    }`}
                 >
                   {isArchiving ? "Please wait..." : isArchived ? "Unarchive" : "Archive"}
                 </button>

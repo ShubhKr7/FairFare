@@ -296,12 +296,7 @@ const getGroupExpenses = async (req, res) => {
         query.$and = participantsArray.map(pid => ({
           $or: [
             { paidBy: pid },
-            { 
-              $and: [
-                { "owedBy.user": pid },
-                { owedBy: { $size: 1 } }
-              ] 
-            }
+            { "owedBy.user": pid }
           ]
         }));
       }

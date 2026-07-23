@@ -52,6 +52,8 @@ const isPublicRoute = (pathname) => {
   if (/^\/public-profile\/.+/.test(pathname)) return true; // /public-profile/:userId
   if (/^\/transaction-history\/.+/.test(pathname)) return true; // /transaction-history/:id
   if (/^\/tripDetails\/.+/.test(pathname)) return true; // /tripDetails/:id
+  if (/^\/add-members\/.+/.test(pathname)) return true; // /add-members/:id
+  if (/^\/remove-members\/.+/.test(pathname)) return true; // /remove-members/:id
   return false;
 };
 

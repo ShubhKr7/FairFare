@@ -178,7 +178,7 @@ const AddMembers = () => {
       </div>
 
       {/* ── Fixed Bottom Button ── */}
-      <div className="fixed bottom-14 left-0 right-0 bg-black/80 backdrop-blur-md border-t border-white/10 px-4 py-4 flex justify-center z-50">
+      <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-md border-t border-white/10 px-4 py-4 flex justify-center z-50">
         <button
           disabled={selectedFriends.length === 0 || isAdding}
           className={`${

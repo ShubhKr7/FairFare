@@ -325,7 +325,7 @@ function CashMapAI() {
       const response = await api.post("/user/ai", {
         userId,
         query: text,
-      });
+      }); 
       console.log(response);
       clearTimeout(timeoutRef.current);
       setIsWaitingForResponse(false);

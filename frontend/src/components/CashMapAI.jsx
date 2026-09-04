@@ -15,14 +15,9 @@ import {
 import { Link } from "react-router-dom";
 import api from "../utils/api";
 import userIcon from "../../public/userIcon.png";
-
-const handleScrollTop = () => {
-  window.scrollTo({
-    top: 0,
-    left: 0,
-    behavior: "smooth",
-  });
-};
+import Cookies from "js-cookie";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 /* ─── Typewriter sub-component ─── */
 function TypewriterText({ text, speed = 14, onComplete }) {
@@ -48,10 +43,10 @@ function TypewriterText({ text, speed = 14, onComplete }) {
   }, [text, speed]);
 
   return (
-    <span>
-      {displayed}
+    <div className="cashmap-markdown">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayed}</ReactMarkdown>
       {!done && <span className="typewriter-cursor">|</span>}
-    </span>
+    </div>
   );
 }
 
@@ -134,10 +129,6 @@ function CashMapAI() {
       top: chatContainerRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, []);
-
-  useEffect(() => {
-    handleScrollTop();
   }, []);
 
   useEffect(() => {
@@ -239,11 +230,9 @@ function CashMapAI() {
     setTimeout(scrollToBottom, 100);
 
     try {
-      const storedUser = localStorage.getItem("user");
-      const user = storedUser ? JSON.parse(storedUser) : {};
-      const userId = user?._id || "";
+      const userId = Cookies.get("id") || "";
 
-      const response = await api.post("https://fair-ai.onrender.com/assist", {
+      const response = await api.post("/user/ai", {
         userId,
         query: input,
       });
@@ -260,10 +249,20 @@ function CashMapAI() {
         setAnimatingIdx(newIdx);
         return [...updated, { type: "bot", content: answer }];
       });
+
+      // Update count from the response if available
+      if (typeof response?.data?.usageCount === 'number') {
+        setDailyCount(response.data.usageCount);
+      }
     } catch (error) {
       console.error("Error:", error);
       clearTimeout(timeoutRef.current);
       setIsWaitingForResponse(false);
+
+      // Get error message from backend or use default
+      const errorData = error?.response?.data;
+      const errorMessage = errorData?.answer || "⚠ Error retrieving response. Please try again later.";
+      const errorType = errorData?.errorType;
 
       setMessages((prev) => {
         const updated = [...prev];
@@ -272,7 +271,7 @@ function CashMapAI() {
           ...updated,
           {
             type: "bot",
-            content: "⚠ Error retrieving response. Please try again.",
+            content: errorMessage,
           },
         ];
       });
@@ -304,7 +303,7 @@ function CashMapAI() {
     setInput(label);
     // Trigger send on next tick so input state is set
     setTimeout(() => {
-      const fakeEvent = { preventDefault: () => {} };
+      const fakeEvent = { preventDefault: () => { } };
       // We set input directly and call send
       handleSendDirect(label);
     }, 0);
@@ -323,10 +322,11 @@ function CashMapAI() {
       const storedUser = localStorage.getItem("user");
       const user = storedUser ? JSON.parse(storedUser) : {};
       const userId = user?._id || "";
-      const response = await api.post("https://fair-ai.onrender.com/assist", {
+      const response = await api.post("/user/ai", {
         userId,
         query: text,
       });
+      console.log(response);
       clearTimeout(timeoutRef.current);
       setIsWaitingForResponse(false);
       const answer = response?.data?.answer || "Sorry, something went wrong!";
@@ -337,6 +337,11 @@ function CashMapAI() {
         setAnimatingIdx(newIdx);
         return [...updated, { type: "bot", content: answer }];
       });
+
+      // Update count from the response if available
+      if (typeof response?.data?.usageCount === 'number') {
+        setDailyCount(response.data.usageCount);
+      }
     } catch (error) {
       console.error("Error:", error);
       clearTimeout(timeoutRef.current);
@@ -398,9 +403,8 @@ function CashMapAI() {
 
           {/* Query badge */}
           <div
-            className={`cashmap-query-badge ${
-              dailyCount >= 10 ? "cashmap-query-badge--limit" : ""
-            }`}
+            className={`cashmap-query-badge ${dailyCount >= 10 ? "cashmap-query-badge--limit" : ""
+              }`}
           >
             <Zap className="w-3.5 h-3.5" />
             <span>
@@ -428,19 +432,20 @@ function CashMapAI() {
 
               {/* Content */}
               <div
-                className={`cashmap-msg-content ${
-                  msg.type === "user" ? "cashmap-msg-content--user" : ""
-                }`}
+                className={`cashmap-msg-content ${msg.type === "user" ? "cashmap-msg-content--user" : ""
+                  }`}
               >
                 {msg.content === "__TYPING__" ? (
                   <TypingIndicator />
                 ) : msg.type === "bot" && i === animatingIdx ? (
-                  <div style={{ whiteSpace: "pre-line" }}>
-                    <TypewriterText
-                      text={msg.content}
-                      speed={14}
-                      onComplete={() => setAnimatingIdx(null)}
-                    />
+                  <TypewriterText
+                    text={msg.content}
+                    speed={14}
+                    onComplete={() => setAnimatingIdx(null)}
+                  />
+                ) : msg.type === "bot" ? (
+                  <div className="cashmap-markdown">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                   </div>
                 ) : (
                   <div style={{ whiteSpace: "pre-line" }}>{msg.content}</div>
@@ -493,14 +498,16 @@ function CashMapAI() {
             </div>
           )}
         </div>
-      </div>
+      </div >
 
       {/* ── Scroll-to-bottom FAB ── */}
-      {!isAtBottom && (
-        <button className="cashmap-scroll-fab" onClick={scrollToBottom}>
-          <ArrowDown className="w-4 h-4" />
-        </button>
-      )}
+      {
+        !isAtBottom && (
+          <button className="cashmap-scroll-fab" onClick={scrollToBottom}>
+            <ArrowDown className="w-4 h-4" />
+          </button>
+        )
+      }
 
       {/* ── Input bar ── */}
       <div className="cashmap-input-bar">
@@ -521,19 +528,18 @@ function CashMapAI() {
                 dailyCount >= 10
                   ? "Query limit reached for today"
                   : isWaitingForResponse
-                  ? "Waiting for response…"
-                  : "Ask about your finances…"
+                    ? "Waiting for response…"
+                    : "Ask about your finances…"
               }
               className="cashmap-textarea"
               disabled={dailyCount >= 10 || isWaitingForResponse}
             />
             <button
               type="submit"
-              className={`cashmap-send ${
-                !input.trim() || dailyCount >= 10 || isWaitingForResponse
-                  ? "cashmap-send--disabled"
-                  : ""
-              }`}
+              className={`cashmap-send ${!input.trim() || dailyCount >= 10 || isWaitingForResponse
+                ? "cashmap-send--disabled"
+                : ""
+                }`}
               disabled={
                 !input.trim() || dailyCount >= 10 || isWaitingForResponse
               }
@@ -549,6 +555,10 @@ function CashMapAI() {
             Fair AI can make mistakes. Verify important financial info.
           </p>
         </form>
+
+        <div className="mt-3 text-[9px] md:text-[10px] text-center text-zinc-600 uppercase tracking-widest font-medium">
+          Powered by FairAI Intelligence • Secure Financial Node
+        </div>
       </div>
 
       {/* ═══ STYLES ═══ */}
@@ -567,6 +577,47 @@ function CashMapAI() {
           font-family: 'Inter', system-ui, -apple-system, sans-serif;
           position: relative;
           overflow: hidden;
+        }
+
+        /* ── MARKDOWN STYLES ── */
+        .cashmap-markdown {
+          font-family: inherit;
+          line-height: 1.5;
+        }
+        .cashmap-markdown > :first-child { margin-top: 0; }
+        .cashmap-markdown p { margin-bottom: 0.75rem; }
+        .cashmap-markdown p:last-child { margin-bottom: 0; }
+        .cashmap-markdown h1, .cashmap-markdown h2, .cashmap-markdown h3, .cashmap-markdown h4 {
+          font-weight: 600;
+          margin-top: 1.25rem;
+          margin-bottom: 0.5rem;
+          color: #fff;
+        }
+        .cashmap-markdown h1 { font-size: 1.25rem; }
+        .cashmap-markdown h2 { font-size: 1.1rem; }
+        .cashmap-markdown h3 { font-size: 1rem; }
+        .cashmap-markdown ul {
+          list-style-type: disc;
+          padding-left: 1.5rem;
+          margin-bottom: 0.75rem;
+        }
+        .cashmap-markdown ol {
+          list-style-type: decimal;
+          padding-left: 1.5rem;
+          margin-bottom: 0.75rem;
+        }
+        .cashmap-markdown li { margin-bottom: 0.25rem; }
+        .cashmap-markdown strong { font-weight: 700; color: #fff; }
+        .cashmap-markdown a { color: #6366f1; text-decoration: underline; }
+        
+        .typewriter-cursor {
+          display: inline-block;
+          width: 2px;
+          height: 1em;
+          background-color: currentColor;
+          animation: blink 1s step-end infinite;
+          vertical-align: text-bottom;
+          margin-left: 2px;
         }
 
         /* ── BACKGROUND ── */
@@ -988,7 +1039,7 @@ function CashMapAI() {
           background: rgba(255,255,255,0.15);
         }
       `}</style>
-    </div>
+    </div >
   );
 }
 

@@ -1,7 +1,4 @@
-import { Group } from "../models/schema.js";
-import { User } from "../models/schema.js";
-import { Expense } from "../models/schema.js";
-import { Notification } from "../models/schema.js";
+import { Group, User, Expense, Notification, UserFinancialSnapshot } from "../models/schema.js";
 import {
   sendOneNotification,
   sendMultipleNotifications,
@@ -10,6 +7,8 @@ import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cloudinary from "../config/cloudinary.js";
 import streamifier from "streamifier";
+import { applyExpenseCreate, applyExpenseDelete } from "./snapshots.js";
+import { invalidateAICache } from "./ai.js";
 dotenv.config();
 
 /**
@@ -76,6 +75,34 @@ const createGroup = async (req, res) => {
         );
       }
     }
+
+    /* ================= SNAPSHOT: GROUP CREATE ================= */
+    try {
+      await Promise.all(
+        members.map(async (userId) => {
+          await UserFinancialSnapshot.updateOne(
+            { userId },
+            {
+              $addToSet: {
+                groups: {
+                  groupId: group._id,
+                  groupName: group.name,
+                  yourTotalSpend: 0,
+                  groupTotal: 0,
+                  categoryTotals: {},
+                  topCategory: null
+                }
+              },
+              $inc: { "profile.groupsCount": 1 }
+            }
+          );
+          invalidateAICache(userId);
+        })
+      );
+    } catch (snapshotErr) {
+      console.error("Snapshot update (group create) failed:", snapshotErr);
+    }
+    /* ========================================================== */
 
     res.status(201).json({
       message: "Group created and friendships updated successfully",
@@ -197,6 +224,36 @@ const addMembers = async (req, res) => {
       }
     }
 
+    /* ================= SNAPSHOT: ADD MEMBERS ================= */
+    try {
+      await Promise.all(
+        newMembers.map(async (userId) => {
+          await UserFinancialSnapshot.updateOne(
+            { userId },
+            {
+              $addToSet: {
+                groups: {
+                  groupId,
+                  groupName: group.name,
+                  yourTotalSpend: 0,
+                  groupTotal: 0,
+                  categoryTotals: {},
+                  topCategory: null
+                }
+              },
+              $inc: { "profile.groupsCount": 1 }
+            }
+          );
+          invalidateAICache(userId);
+        })
+      );
+      // Also invalidate cache for existing members since friends list might change/update
+      existingMemberIds.forEach(id => invalidateAICache(id));
+    } catch (snapshotErr) {
+      console.error("Snapshot update (add members) failed:", snapshotErr);
+    }
+    /* ========================================================= */
+
     const updatedGroup = await Group.findById(groupId)
       .populate("members")
       .populate("expenses");
@@ -249,6 +306,27 @@ const removeMembers = async (req, res) => {
       const body = `You have been removed from the group "${group.name}".`;
       await sendMultipleNotifications(tokens, title, body); // ✅ one request to FCM
     }
+
+    /* ================= SNAPSHOT: REMOVE MEMBERS ================= */
+    try {
+      await Promise.all(
+        members.map(async (userId) => {
+          await UserFinancialSnapshot.updateOne(
+            { userId },
+            {
+              $pull: { groups: { groupId } },
+              $inc: { "profile.groupsCount": -1 }
+            }
+          );
+          invalidateAICache(userId);
+        })
+      );
+      // Invalidate cache for remaining members
+      group.members.forEach(m => invalidateAICache(m._id));
+    } catch (snapshotErr) {
+      console.error("Snapshot update (remove members) failed:", snapshotErr);
+    }
+    /* ============================================================ */
 
     // ✅ Return updated group
     const updatedGroup = await Group.findById(groupId)
@@ -548,6 +626,19 @@ const addExpenseController = async (req, res) => {
       }
     }
 
+    /* ================= SNAPSHOT: EXPENSE CREATE ================= */
+    if (savedExpense) {
+      try {
+        await applyExpenseCreate(savedExpense);
+        // Invalidate cache for all members involved in this split
+        savedExpense.owedBy.forEach(owed => invalidateAICache(owed.user));
+        invalidateAICache(savedExpense.paidBy);
+      } catch (snapshotErr) {
+        console.error("Snapshot expense apply failed:", snapshotErr);
+      }
+    }
+    /* ============================================================ */
+
     return res.status(200).json({ success: true, expense: savedExpense });
   } catch (error) {
     console.error("Error in addExpenseController:", error);
@@ -798,9 +889,21 @@ const addafterDeleteExpenseController = async (req, res) => {
           }
         }
       } catch (notifyErr) {
-        console.error("Error sending expense edited notification:", notifyErr);
+        console.error("Error in addafterDeleteExpenseController notifications:", notifyErr);
       }
     }
+
+    /* ================= SNAPSHOT: EXPENSE CREATE ================= */
+    if (savedExpense) {
+      try {
+        await applyExpenseCreate(savedExpense);
+        savedExpense.owedBy.forEach(owed => invalidateAICache(owed.user));
+        invalidateAICache(savedExpense.paidBy);
+      } catch (snapshotErr) {
+        console.error("Snapshot expense apply failed:", snapshotErr);
+      }
+    }
+    /* ============================================================ */
 
     return res.status(200).json({ success: true, expense: savedExpense });
   } catch (error) {
@@ -915,6 +1018,18 @@ const deleteExpenseController = async (req, res) => {
         }
       }
     }
+
+    /* ================= SNAPSHOT: EXPENSE DELETE ================= */
+    if (deletedExpense) {
+      try {
+        await applyExpenseDelete(deletedExpense);
+        deletedExpense.owedBy.forEach(owed => invalidateAICache(owed.user));
+        invalidateAICache(deletedExpense.paidBy);
+      } catch (snapshotErr) {
+        console.error("Snapshot expense delete failed:", snapshotErr);
+      }
+    }
+    /* ============================================================ */
 
     return res.status(200).json({ success: true, message: "Expense deleted" });
   } catch (error) {

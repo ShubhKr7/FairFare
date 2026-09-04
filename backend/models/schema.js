@@ -119,6 +119,64 @@ const LabelCategorySchema = new mongoose.Schema({
 },
   { timestamps: true });
 
+const UserFinancialSnapshotSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    unique: true,
+    index: true,
+    required: true
+  },
+
+  profile: {
+    username: String,
+    groupsCount: Number,
+    upiLinked: Boolean
+  },
+
+  friends: [
+    {
+      friendId: mongoose.Schema.Types.ObjectId,
+      friendName: String,
+      netBalance: { type: Number, default: 0 }
+    }
+  ],
+
+  groups: [
+    {
+      groupId: mongoose.Schema.Types.ObjectId,
+      yourTotalSpend: { type: Number, default: 0 },
+      groupTotal: { type: Number, default: 0 },
+      topCategory: String,
+      groupName: String,
+
+      // Optional but powerful
+      categoryTotals: {
+        type: Map,
+        of: Number,
+        default: {}
+      }
+    }
+  ],
+
+  spending: {
+    totalSpend: { type: Number, default: 0 },
+    categoryTotals: {
+      type: Map,
+      of: Number,
+      default: {}
+    }
+  },
+
+  trends: {
+    monthlyTotal: { type: Number, default: 0 },
+    lastMonthTotal: { type: Number, default: 0 }
+  },
+
+  version: { type: Number, default: 1 },
+  lastUpdated: { type: Date, default: Date.now }
+
+}, { timestamps: true });
+
 // Terms Schema
 const termsSchema = new mongoose.Schema(
   {
@@ -207,7 +265,11 @@ const Group = mongoose.model("Group", groupSchema);
 const FriendRequest = mongoose.model("FriendRequest", friendRequestSchema);
 const LabelCategory = mongoose.model("LabelCategory", LabelCategorySchema);
 const Notification = mongoose.model("Notification", notificationSchema);
+const UserFinancialSnapshot = mongoose.model(
+  "UserFinancialSnapshot",
+  UserFinancialSnapshotSchema
+);
 
 const Terms = mongoose.model("Terms", termsSchema);
 
-export { User, Group, Expense, FriendRequest, LabelCategory, Terms, Notification };
+export { User, Group, Expense, FriendRequest, LabelCategory, Terms, Notification, UserFinancialSnapshot };

@@ -30,9 +30,11 @@ import {
   publicUserDetails,
   googleAuth,
   checkUsernameAvailability,
+  getAiUsage,
 } from "../controllers/user.js";
 import upload from "../middleware/multer.js";
 import { auth } from "../middleware/auth.js";
+import { askFairFareAI } from "../controllers/ai.js";
 const router = express.Router();
 
 // Define routes
@@ -58,6 +60,7 @@ router.post("/top-categories", auth, getTopCategoriesForUser);
 router.post("/subcategories", auth, getSubCategoriesForUser);
 router.post("/expenses-by-subcategory", auth, getAllExpensesForASubcategory);
 router.post("/notify", notifyFriend);
+router.post("/ai", auth, askFairFareAI);
 
 //PUT routes
 router.put("/:id", auth, updateUserProfile);
@@ -69,6 +72,7 @@ router.get('/search', auth, getUsernames);
 router.get("/friend-requests/:userId", auth, listFriendRequests);
 router.get("/friend-request-status/:fromUserId/:toUserId", auth, checkFriendRequestStatus);
 router.get("/last-updated-at/:id", auth, getUserLastUpdatedAt);
+router.get("/ai-usage/:id", auth, getAiUsage);
 router.get("/public/:id", publicUserDetails);
 router.get("/friend-suggestions/:userId", auth, getFriendSuggestions);
 router.get("/:id", auth, userDetails);

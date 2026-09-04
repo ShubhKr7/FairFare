@@ -1,4 +1,4 @@
-import { User, Group, Expense, Terms, FriendRequest, Notification } from "../models/schema.js";
+import { User, Group, Expense, Terms, FriendRequest, Notification, UserFinancialSnapshot } from "../models/schema.js";
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
 import { bloomFilter } from "../utils/bloomFilter.js";
@@ -6,6 +6,8 @@ import {
   sendOneNotification,
   sendMultipleNotifications,
 } from "../controllers/Notifications.js";
+import { createSnapshot, applyExpenseCreate } from "./snapshots.js";
+import { invalidateAICache } from "./ai.js";
 
 import dotenv from "dotenv";
 dotenv.config();
@@ -202,6 +204,35 @@ const verifyOtp = async (req, res) => {
       });
     }
 
+    /* ================= SNAPSHOT: CREATE USER SNAPSHOT ================= */
+    try {
+      await createSnapshot(newUser._id);
+      if (referId) {
+        const referUser = await User.findById(referId);
+        if (referUser) {
+          await UserFinancialSnapshot.updateOne(
+            { userId: referId },
+            {
+              $addToSet: {
+                friends: { friendId: newUser._id, friendName: newUser.username, netBalance: 0 }
+              }
+            }
+          );
+          await UserFinancialSnapshot.updateOne(
+            { userId: newUser._id },
+            {
+              $addToSet: {
+                friends: { friendId: referId, friendName: referUser.username, netBalance: 0 }
+              }
+            }
+          );
+        }
+      }
+    } catch (snapshotErr) {
+      console.error("Snapshot creation/referral failed:", snapshotErr);
+    }
+    /* ================================================================= */
+
     const token = signAccessToken(newUser._id);
 
     return res.status(200).json({ id: newUser._id, token });
@@ -240,6 +271,20 @@ const userLogin = async (req, res) => {
         message: "Password is not correct",
       });
     }
+
+    /* ================= SNAPSHOT: ENSURE SNAPSHOT EXISTS ================= */
+    try {
+      const snapshotExists = await UserFinancialSnapshot.exists({
+        userId: user._id
+      });
+
+      if (!snapshotExists) {
+        await createSnapshot(user._id);
+      }
+    } catch (snapshotErr) {
+      console.error("Snapshot check/create failed:", snapshotErr);
+    }
+    /* =================================================================== */
 
     // Remove password from user object before sending response
     const userWithoutPassword = { ...user.toObject() };
@@ -1296,6 +1341,35 @@ const respondToFriendRequest = async (req, res) => {
     }
 
     if (resultAction === "approve") {
+      /* ================= SNAPSHOT: ADD FRIEND ================= */
+      try {
+        await UserFinancialSnapshot.updateOne(
+          { userId: senderUser._id },
+          {
+            $addToSet: {
+              friends: { friendId: acceptorUser._id, friendName: acceptorUser.username, netBalance: 0 }
+            }
+          }
+        );
+
+        await UserFinancialSnapshot.updateOne(
+          { userId: acceptorUser._id },
+          {
+            $addToSet: {
+              friends: { friendId: senderUser._id, friendName: senderUser.username, netBalance: 0 }
+            }
+          }
+        );
+      } catch (snapshotErr) {
+        console.error("Snapshot update failed:", snapshotErr);
+      }
+      /* ======================================================= */
+
+      /* ================= INVALIDATE AI CACHE ================= */
+      invalidateAICache(senderUser._id);
+      invalidateAICache(acceptorUser._id);
+      /* ======================================================= */
+
       return res.status(200).json({ message: "Friend request approved" });
     } else {
       return res.status(200).json({ message: "Friend request denied" });
@@ -1336,6 +1410,10 @@ const updateFriendBalance = async (req, res) => {
     let userToNotifyAs = null;
     let payer = null;
     let owedUser = null;
+    let userIncrement = 0;
+    let friendIncrement = 0;
+    let userIdObj = null;
+    let friendIdObj = null;
 
     await session.withTransaction(async () => {
       // Fetch both users
@@ -1373,6 +1451,8 @@ const updateFriendBalance = async (req, res) => {
       } else {
         throw new Error("Invalid action type");
       }
+      userIdObj = user._id;
+      friendIdObj = friend._id;
 
       // Update the user's friend record
       await User.updateOne(
@@ -1413,6 +1493,35 @@ const updateFriendBalance = async (req, res) => {
       friendToNotify = friend;
       userToNotifyAs = user;
     });
+
+    /* ================= SNAPSHOT: FRIEND BALANCE UPDATE ================= */
+    try {
+      await UserFinancialSnapshot.updateOne(
+        { userId: userIdObj, "friends.friendId": friendIdObj },
+        { $inc: { "friends.$.netBalance": userIncrement } }
+      );
+
+      await UserFinancialSnapshot.updateOne(
+        { userId: friendIdObj, "friends.friendId": userIdObj },
+        { $inc: { "friends.$.netBalance": friendIncrement } }
+      );
+    } catch (snapshotErr) {
+      console.error("Snapshot friend balance update failed:", snapshotErr);
+    }
+    /* =================================================================== */
+
+    /* ================= SNAPSHOT: EXPENSE APPLY ================= */
+    try {
+      await applyExpenseCreate(savedExpense);
+    } catch (snapshotErr) {
+      console.error("Snapshot expense apply failed:", snapshotErr);
+    }
+    /* =========================================================== */
+
+    /* ================= INVALIDATE AI CACHE ================= */
+    invalidateAICache(userIdObj);
+    invalidateAICache(friendIdObj);
+    /* ======================================================= */
 
     // Send notifications AFTER commit
     if (friendToNotify?.fcmToken) {
@@ -1505,6 +1614,31 @@ const removeFriend = async (req, res) => {
         { session }
       );
     });
+
+    /* ================= SNAPSHOT: REMOVE FRIEND ================= */
+    try {
+      await UserFinancialSnapshot.updateOne(
+        { userId },
+        {
+          $pull: { friends: { friendId } }
+        }
+      );
+
+      await UserFinancialSnapshot.updateOne(
+        { userId: friendId },
+        {
+          $pull: { friends: { friendId: userId } }
+        }
+      );
+    } catch (snapshotErr) {
+      console.error("Snapshot friend removal failed:", snapshotErr);
+    }
+    /* =========================================================== */
+
+    /* ================= INVALIDATE AI CACHE ================= */
+    invalidateAICache(userId);
+    invalidateAICache(friendId);
+    /* ======================================================= */
 
     return res.status(200).json({ message: "Friend removed successfully." });
   } catch (error) {
@@ -2033,6 +2167,35 @@ const googleAuth = async (req, res) => {
       }
     }
 
+    /* ================= SNAPSHOT: CREATE USER SNAPSHOT ================= */
+    try {
+      await createSnapshot(newUser._id);
+      if (referId) {
+        const referUser = await User.findById(referId);
+        if (referUser) {
+          await UserFinancialSnapshot.updateOne(
+            { userId: referId },
+            {
+              $addToSet: {
+                friends: { friendId: newUser._id, friendName: newUser.username, netBalance: 0 }
+              }
+            }
+          );
+          await UserFinancialSnapshot.updateOne(
+            { userId: newUser._id },
+            {
+              $addToSet: {
+                friends: { friendId: referId, friendName: referUser.username, netBalance: 0 }
+              }
+            }
+          );
+        }
+      }
+    } catch (snapshotErr) {
+      console.error("Snapshot creation/referral failed during Google signup:", snapshotErr);
+    }
+    /* ================================================================= */
+
     const userWithoutPassword = { ...newUser.toObject() };
     delete userWithoutPassword.password;
     const token = signAccessToken(newUser._id);
@@ -2083,6 +2246,33 @@ const checkUsernameAvailability = async (req, res) => {
   }
 };
 
+const getAiUsage = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user = await User.findById(userId).select("aiChatUsage");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const usage = user.aiChatUsage || {};
+    let count = usage.count || 0;
+    const lastUsed = usage.lastUsed;
+
+    if (!lastUsed || new Date(lastUsed) < today) {
+      count = 0;
+    }
+
+    res.status(200).json({ count, usageCount: count });
+  } catch (error) {
+    console.error("Error fetching AI usage:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export {
   sendOtp,
   userLogin,
@@ -2114,4 +2304,5 @@ export {
   publicUserDetails,
   googleAuth,
   checkUsernameAvailability,
+  getAiUsage,
 };

@@ -149,11 +149,17 @@ const FairFareCard = () => {
               </div>
 
               <div>
-                <p className="text-[10px] sm:text-[20px] text-zinc-500 uppercase tracking-wide">
-                  Current Balance
+                <p className="text-[10px] sm:text-xs text-zinc-400 uppercase tracking-wider font-semibold">
+                  {balanceMessage || "Current Balance"}
                 </p>
-                <p className="text-base text-xl font-mono text-white tracking-tight">
-                  ₹{Math.abs(netBalance).toFixed(2)}
+                <p className={`text-base sm:text-xl font-mono tracking-tight font-bold ${
+                  netBalance > 0
+                    ? "text-emerald-400"
+                    : netBalance < 0
+                    ? "text-rose-400"
+                    : "text-white"
+                }`}>
+                  {netBalance > 0 ? "+" : netBalance < 0 ? "-" : ""}₹{Math.abs(netBalance).toFixed(2)}
                 </p>
               </div>
             </div>

@@ -1,9 +1,7 @@
 import { useState } from "react";
-import PropTypes from "prop-types";
 import { Trash2, Edit3, Loader2 } from "lucide-react";
-import axios from "axios";
-import { toast } from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
+import Cookies from "js-cookie";
 import api from "../utils/api";
 import { motion, AnimatePresence } from "framer-motion";
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
@@ -26,6 +24,63 @@ const ExpenseCard = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const navigate = useNavigate();
+
+  const currentUserId = Cookies.get("id") || (() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}")?._id;
+    } catch {
+      return null;
+    }
+  })();
+
+  const paidById = paidBy?._id?.toString?.() || paidBy?.toString?.() || "";
+  const isPayer = Boolean(currentUserId && paidById && paidById === currentUserId.toString());
+
+  // Check if current user is in beneficiaries (owedBy)
+  const myOwedEntry = beneficiaries?.find((b) => {
+    const bId = b.user?._id?.toString?.() || b.user?.toString?.() || "";
+    return currentUserId && bId === currentUserId.toString();
+  });
+
+  // Total amount lent to other members if current user is payer
+  const amountLent = beneficiaries?.reduce((sum, b) => {
+    const bId = b.user?._id?.toString?.() || b.user?.toString?.() || "";
+    if (bId !== currentUserId?.toString()) {
+      return sum + (Number(b.amount) || 0);
+    }
+    return sum;
+  }, 0) || 0;
+
+  const amountOwed = myOwedEntry ? (Number(myOwedEntry.amount) || 0) : 0;
+
+  let amountColorClass = "text-white";
+  let statusText = null;
+  let statusColorClass = "text-zinc-500";
+  let orbBgClass = iconColor || "bg-indigo-500";
+  let orbBorderClass = "bg-opacity-20 border-white/10";
+  let dotClass = "bg-white";
+
+  if (!isPersonal) {
+    if (isPayer && amountLent > 0) {
+      amountColorClass = "text-emerald-400 font-semibold";
+      statusText = `you lent ₹${amountLent.toFixed(2)}`;
+      statusColorClass = "text-emerald-400/90";
+      orbBgClass = "bg-emerald-500";
+      orbBorderClass = "bg-emerald-500/20 border-emerald-500/30";
+      dotClass = "bg-emerald-400";
+    } else if (!isPayer && amountOwed > 0) {
+      amountColorClass = "text-rose-400 font-semibold";
+      statusText = `you owe ₹${amountOwed.toFixed(2)}`;
+      statusColorClass = "text-rose-400/90";
+      orbBgClass = "bg-rose-500";
+      orbBorderClass = "bg-rose-500/20 border-rose-500/30";
+      dotClass = "bg-rose-400";
+    } else if (isPayer && amountLent === 0) {
+      amountColorClass = "text-zinc-200";
+      statusText = "paid by you";
+      statusColorClass = "text-zinc-400";
+    }
+  }
   const allowEdit =
     window.location.pathname !== "/dash" &&
     (window.location.pathname !== "/allExpenses" || isPersonal);
@@ -112,17 +167,14 @@ const ExpenseCard = ({
           {/* Glowing Status Orb */}
           <div className="relative flex-shrink-0">
             <div
-              className={`absolute inset-0 ${iconColor} blur-md opacity-40 group-hover:opacity-60 transition-opacity`}
+              className={`absolute inset-0 ${orbBgClass} blur-md opacity-40 group-hover:opacity-60 transition-opacity`}
             ></div>
             <div
-              className={`relative w-10 h-10 rounded-full ${iconColor} bg-opacity-20 flex items-center justify-center border border-white/10 shadow-inner`}
+              className={`relative w-10 h-10 rounded-full ${orbBgClass} ${orbBorderClass} flex items-center justify-center border shadow-inner`}
             >
               {/* Optional: You can put an icon here later. For now, a simple dot or initial */}
               <div
-                className={`w-2 h-2 rounded-full ${iconColor.replace(
-                  "bg-",
-                  "bg-"
-                )}-200 bg-white`}
+                className={`w-2 h-2 rounded-full ${dotClass}`}
               ></div>
             </div>
           </div>
@@ -199,9 +251,14 @@ const ExpenseCard = ({
 
           {/* Amount Display */}
           <div className="text-right">
-            <div className="text-lg font-mono font-medium text-white tracking-tight">
+            <div className={`text-lg font-mono font-medium tracking-tight ${amountColorClass}`}>
               ₹{amount?.toFixed(2)}
             </div>
+            {statusText && (
+              <div className={`text-[10px] font-medium tracking-wide ${statusColorClass}`}>
+                {statusText}
+              </div>
+            )}
           </div>
         </div>
       </div>

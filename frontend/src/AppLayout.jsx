@@ -42,7 +42,8 @@ const PUBLIC_ROUTES = [
   "/tripDetails",
   "/add-expense",
   "/expense/edit",
-  "/personal-expenses"
+  "/personal-expenses",
+  "/addTrip"
 ];
 
 const isPublicRoute = (pathname) => {

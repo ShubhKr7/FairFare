@@ -16,5 +16,19 @@
   "start_url": "/?v=3",
   "display": "standalone",
   "theme_color": "#3978F2",          
-  "background_color": "#ffffff"      
+  "background_color": "#ffffff",
+  "shortcuts": [
+    {
+      "name": "Quick Add (Voice)",
+      "short_name": "Voice Add",
+      "description": "Quickly add an expense using your voice",
+      "url": "/dash?voice=true",
+      "icons": [
+        {
+          "src": "/newIconV3-512x512.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
 }

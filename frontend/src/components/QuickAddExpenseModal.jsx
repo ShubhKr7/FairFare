@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 import Cookies from "js-cookie";
 import { motion, AnimatePresence } from "framer-motion";
 
-const QuickAddExpenseModal = ({ isOpen, onClose, user }) => {
+const QuickAddExpenseModal = ({ isOpen, onClose, user, autoStartVoice }) => {
     const navigate = useNavigate();
 
     // Mode: "personal" (default), "group", or "friends"
@@ -222,6 +222,15 @@ const QuickAddExpenseModal = ({ isOpen, onClose, user }) => {
         recognitionRef.current = recognition;
         recognition.start();
     };
+
+    useEffect(() => {
+        if (autoStartVoice && isOpen && !isListening) {
+            // Small delay to ensure modal animation finishes before starting mic
+            setTimeout(() => {
+                startListening();
+            }, 500);
+        }
+    }, [autoStartVoice, isOpen]);
 
     // --- Submit Expense ---
     const handleSubmit = async (e) => {

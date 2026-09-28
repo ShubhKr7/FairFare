@@ -67,6 +67,7 @@ const AppLayout = () => {
   const [showTerms, setShowTerms] = useState(false);
   const [termsList, setTermsList] = useState([]);
   const [showQuickExpense, setShowQuickExpense] = useState(false);
+  const [autoStartVoice, setAutoStartVoice] = useState(false);
 
   useEffect(() => {
     const checkTerms = async () => {
@@ -88,7 +89,18 @@ const AppLayout = () => {
     };
 
     checkTerms();
-  }, [useLocation().pathname]); // Re-check on route change if you want, or just once on mount. Pathname ensures it runs if they navigate.
+  }, [location.pathname]); // Re-check on route change if you want, or just once on mount. Pathname ensures it runs if they navigate.
+
+  // --- Voice Add Shortcut Handling ---
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("voice") === "true") {
+      setAutoStartVoice(true);
+      setShowQuickExpense(true);
+      // Remove the query param so it doesn't trigger again on refresh
+      window.history.replaceState({}, document.title, location.pathname);
+    }
+  }, [location.search]);
 
   const handleTermsAccept = async (termId) => {
     try {
@@ -112,6 +124,11 @@ const AppLayout = () => {
       console.error("Error accepting terms:", error);
       // You might want to show an error toast here
     }
+  };
+
+  const handleCloseQuickExpense = () => {
+    setShowQuickExpense(false);
+    setAutoStartVoice(false);
   };
 
   return (
@@ -146,7 +163,8 @@ const AppLayout = () => {
           {showQuickExpense && (
             <QuickAddExpenseModal
               isOpen={showQuickExpense}
-              onClose={() => setShowQuickExpense(false)}
+              onClose={handleCloseQuickExpense}
+              autoStartVoice={autoStartVoice}
             />
           )}
         </>

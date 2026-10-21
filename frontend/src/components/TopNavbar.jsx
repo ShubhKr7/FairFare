@@ -33,7 +33,7 @@ const TopNavbar = ({ user }) => {
           <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg blur opacity-0 group-hover:opacity-25 transition duration-500 pointer-events-none"></div>
           <img
             src={dashboardLogoNew}
-            alt="Fair Fare"
+            alt="FairFare"
             className="relative h-9 w-auto object-contain rounded-lg"
           />
       </div>

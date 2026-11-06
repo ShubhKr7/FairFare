@@ -433,8 +433,8 @@ const TripDetails = () => {
             <button
               onClick={() => setShowArchiveConfirmation(true)}
               className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors uppercase tracking-wider border border-transparent ${isArchived
-                  ? "text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500/20"
-                  : "text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/20"
+                ? "text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500/20"
+                : "text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/20"
                 }`}
             >
               {isArchived ? "Unarchive" : "Archive"}
@@ -675,31 +675,26 @@ const TripDetails = () => {
                     const currentUser = storedUser ? JSON.parse(storedUser) : null;
                     const isCurrentUser = currentUser && member._id === currentUser._id;
 
-                    const handleMemberClick = (e) => {
-                      if (isCurrentUser) {
-                        e.preventDefault();
-                        toast.error("Cannot view transaction history with yourself!");
-                      }
-                    };
-
                     return (
                       <div key={index}>
                         {isCurrentUser ? (
-                          <div
-                            onClick={handleMemberClick}
-                            className="flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 rounded-xl hover:bg-white/5 transition-colors group cursor-pointer"
-                          >
-                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center text-indigo-400 font-bold text-xs sm:text-sm shadow-inner group-hover:border-indigo-500/50 transition-colors">
-                              {typeof member === "string"
-                                ? member.charAt(0)
-                                : member?.username?.charAt(0) || "?"}
+                          <Link to={`/personal-expenses`}>
+                            <div
+                              className="flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 rounded-xl hover:bg-white/5 transition-colors group cursor-pointer"
+                            >
+                              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center text-indigo-400 font-bold text-xs sm:text-sm shadow-inner group-hover:border-indigo-500/50 transition-colors">
+                                {typeof member === "string"
+                                  ? member.charAt(0)
+                                  : member?.username?.charAt(0) || "?"}
+                              </div>
+                              <span className="text-xs sm:text-sm text-zinc-300 font-medium truncate flex-1">
+                                {typeof member === "string"
+                                  ? member
+                                  : member?.username}
+                              </span>
+                              <ArrowUpRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-indigo-400 transition-colors" />
                             </div>
-                            <span className="text-xs sm:text-sm text-zinc-300 font-medium truncate flex-1">
-                              {typeof member === "string"
-                                ? member
-                                : member?.username}
-                            </span>
-                          </div>
+                          </Link>
                         ) : (
                           <Link to={`/transaction-history/${member._id}`}>
                             <div className="flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 rounded-xl hover:bg-white/5 transition-colors group">
@@ -787,8 +782,8 @@ const TripDetails = () => {
                         );
                       }}
                       className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${isSelected
-                          ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-900/20"
-                          : "bg-zinc-800/50 border-white/10 text-zinc-400 hover:text-white hover:bg-zinc-800"
+                        ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-900/20"
+                        : "bg-zinc-800/50 border-white/10 text-zinc-400 hover:text-white hover:bg-zinc-800"
                         }`}
                     >
                       {member.username}
@@ -918,8 +913,8 @@ const TripDetails = () => {
                   onClick={handleToggleArchive}
                   disabled={isArchiving}
                   className={`flex-1 py-2.5 rounded-lg text-white font-bold shadow-lg transition-all disabled:opacity-50 ${isArchived
-                      ? "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/20"
-                      : "bg-amber-600 hover:bg-amber-500 shadow-amber-900/20"
+                    ? "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/20"
+                    : "bg-amber-600 hover:bg-amber-500 shadow-amber-900/20"
                     }`}
                 >
                   {isArchiving ? "Please wait..." : isArchived ? "Unarchive" : "Archive"}

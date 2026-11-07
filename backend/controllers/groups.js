@@ -460,6 +460,7 @@ const addExpenseController = async (req, res) => {
   }
 
   // Get payer's friends list
+  //we can skip this check if we are sure that the payer is always friends with the involved members
   const payer = await User.findById(paidBy).select("friends username");
   if (!payer) {
     return res.status(404).json({ success: false, message: "Payer not found" });
@@ -578,66 +579,67 @@ const addExpenseController = async (req, res) => {
       savedExpense = newExpense;
     });
 
-    // Send Notification AFTER transaction commit
+    // Return after the transaction commits; defer non-critical post-commit work.
     if (savedExpense) {
-      const userIds = savedExpense.owedBy.map((owed) => owed.user);
-      if (!userIds.some(id => id.toString() === paidBy.toString())) {
-        userIds.push(paidBy);
-      }
+      setImmediate(() => {
+        void (async () => {
+          const userIds = savedExpense.owedBy.map((owed) => owed.user);
+          if (!userIds.some(id => id.toString() === paidBy.toString())) {
+            userIds.push(paidBy);
+          }
 
-      const users = await User.find(
-        { _id: { $in: userIds } },
-        "fcmToken username"
-      );
+          const users = await User.find(
+            { _id: { $in: userIds } },
+            "fcmToken username"
+          );
 
-      const tokens = users.map((u) => u.fcmToken).filter(Boolean);
+          const tokens = users.map((u) => u.fcmToken).filter(Boolean);
+          if (tokens.length > 0) {
+            const payerUser = users.find((u) => u._id.toString() === paidBy.toString());
+            const notificationTitle = "Tap to see";
+            const body = `${savedExpense.title} expense has been paid by ${payerUser?.username || "Someone"
+              }. \nAmount: ${savedExpense.amount}`;
 
-      if (tokens.length > 0) {
-        const payerUser = users.find((u) => u._id.toString() === paidBy.toString());
-        const notificationTitle = "Tap to see";
-        const body = `${savedExpense.title} expense has been paid by ${payerUser?.username || "Someone"
-          }. \nAmount: ${savedExpense.amount}`;
+            await sendMultipleNotifications(tokens, notificationTitle, body);
+          }
 
-        await sendMultipleNotifications(tokens, notificationTitle, body);
-      }
+          const groupName = savedExpense.group
+            ? (await Group.findById(savedExpense.group).select("name"))?.name
+            : null;
 
-      // Create Activity notifications for each user owing money
-      const payerUsername = users.find((u) => u._id.toString() === paidBy.toString())?.username || "Someone";
-      const groupName = savedExpense.group ? (await Group.findById(savedExpense.group).select("name"))?.name : null;
-      
-      for (const owed of savedExpense.owedBy) {
-        if (owed.user.toString() === paidBy.toString()) continue; // Don't notify the payer about themselves
-        
-        const message = groupName
-          ? `You were added to "${savedExpense.title}" in ${groupName}`
-          : `You were added to "${savedExpense.title}"`;
-        const notifType = groupName ? "group_expense_added" : "expense_added";
-        try {
-          await Notification.create({
-            recipient: owed.user,
-            sender: paidBy,
-            type: notifType,
-            message,
-            referenceId: savedExpense._id,
-          });
-        } catch (notifError) {
-          console.error("Error creating activity notification:", notifError);
-        }
-      }
+          for (const owed of savedExpense.owedBy) {
+            if (owed.user.toString() === paidBy.toString()) continue;
+
+            const message = groupName
+              ? `You were added to "${savedExpense.title}" in ${groupName}`
+              : `You were added to "${savedExpense.title}"`;
+            const notifType = groupName ? "group_expense_added" : "expense_added";
+
+            try {
+              await Notification.create({
+                recipient: owed.user,
+                sender: paidBy,
+                type: notifType,
+                message,
+                referenceId: savedExpense._id,
+              });
+            } catch (notifError) {
+              console.error("Error creating activity notification:", notifError);
+            }
+          }
+
+          try {
+            await applyExpenseCreate(savedExpense);
+            savedExpense.owedBy.forEach(owed => invalidateAICache(owed.user));
+            invalidateAICache(savedExpense.paidBy);
+          } catch (snapshotErr) {
+            console.error("Snapshot expense apply failed:", snapshotErr);
+          }
+        })().catch((postCommitErr) => {
+          console.error("Post-commit expense processing failed:", postCommitErr);
+        });
+      });
     }
-
-    /* ================= SNAPSHOT: EXPENSE CREATE ================= */
-    if (savedExpense) {
-      try {
-        await applyExpenseCreate(savedExpense);
-        // Invalidate cache for all members involved in this split
-        savedExpense.owedBy.forEach(owed => invalidateAICache(owed.user));
-        invalidateAICache(savedExpense.paidBy);
-      } catch (snapshotErr) {
-        console.error("Snapshot expense apply failed:", snapshotErr);
-      }
-    }
-    /* ============================================================ */
 
     return res.status(200).json({ success: true, expense: savedExpense });
   } catch (error) {

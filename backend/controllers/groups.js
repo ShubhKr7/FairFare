@@ -7,7 +7,7 @@ import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cloudinary from "../config/cloudinary.js";
 import streamifier from "streamifier";
-import { applyExpenseCreate, applyExpenseDelete } from "./snapshots.js";
+import { applyExpenseCreate, applyExpenseDelete, applyExpenseUpdate } from "./snapshots.js";
 import { invalidateAICache } from "./ai.js";
 dotenv.config();
 
@@ -1361,6 +1361,211 @@ const deleteGroupBanner = async (req, res) => {
   }
 };
 
+const updateGroupExpenseController = async (req, res) => {
+  const { expenseId } = req.params;
+  const {
+    title,
+    amount,
+    paidBy,
+    groupId,
+    splitMode,
+    involvedMembers,
+    customAmounts,
+    createdAt: clientCreatedAt,
+  } = req.body;
+
+  if (
+    !expenseId ||
+    !title ||
+    !amount ||
+    !paidBy ||
+    !involvedMembers ||
+    !Array.isArray(involvedMembers) ||
+    involvedMembers.length === 0
+  ) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing required fields" });
+  }
+
+  const session = await mongoose.startSession();
+
+  try {
+    let updatedExpense = null;
+    let oldExpenseObject = null;
+
+    await session.withTransaction(async () => {
+      const oldExpense = await Expense.findById(expenseId).session(session);
+      if (!oldExpense) {
+        throw new Error("Expense not found");
+      }
+
+      oldExpenseObject = oldExpense.toObject();
+
+      // Calculate new owedByArray
+      let owedByArray = [];
+      if (splitMode === "equally") {
+        const share = parseFloat(amount) / involvedMembers.length;
+        owedByArray = involvedMembers.map((memberId) => ({
+          user: memberId,
+          amount: parseFloat(share.toFixed(2)),
+        }));
+      } else if (splitMode === "unequally") {
+        owedByArray = involvedMembers.map((memberId) => ({
+          user: memberId,
+          amount: parseFloat(parseFloat(customAmounts[memberId] || 0).toFixed(2)),
+        }));
+      } else {
+        throw new Error("Invalid split mode provided");
+      }
+
+      // Step 1: Reverse old expense effects (as in deleteExpenseController)
+      const oldPaidBy = oldExpense.paidBy.toString();
+      for (const owed of oldExpense.owedBy) {
+        const owedUserId = owed.user.toString();
+        if (owedUserId === oldPaidBy) continue;
+
+        await User.updateOne(
+          { _id: oldExpense.paidBy, "friends.friend": owed.user },
+          { $inc: { "friends.$.balance": -owed.amount } },
+          { session }
+        );
+        await User.updateOne(
+          { _id: owed.user, "friends.friend": oldExpense.paidBy },
+          { $inc: { "friends.$.balance": owed.amount } },
+          { session }
+        );
+      }
+
+      if (oldPaidBy !== paidBy.toString()) {
+        await User.updateOne(
+          { _id: oldExpense.paidBy },
+          { $pull: { recentExpense: expenseId } },
+          { session }
+        );
+        await User.updateOne(
+          { _id: paidBy },
+          { $push: { recentExpense: expenseId } },
+          { session }
+        );
+      }
+
+      // Step 2: Apply new expense effects (as in addafterDeleteExpenseController)
+      const newPaidBy = paidBy.toString();
+      for (const owed of owedByArray) {
+        const owedUserId = owed.user.toString();
+        if (owedUserId === newPaidBy) continue;
+
+        await User.updateOne(
+          { _id: paidBy, "friends.friend": owed.user },
+          { $inc: { "friends.$.balance": owed.amount } },
+          { session }
+        );
+        await User.updateOne(
+          { _id: owed.user, "friends.friend": paidBy },
+          { $inc: { "friends.$.balance": -owed.amount } },
+          { session }
+        );
+      }
+
+      // Update Group tripTotal if group exists
+      const targetGroupId = groupId || oldExpense.group;
+      if (targetGroupId) {
+        const amountDelta = parseFloat(amount) - oldExpense.amount;
+        if (amountDelta !== 0) {
+          await Group.updateOne(
+            { _id: targetGroupId },
+            { $inc: { tripTotal: amountDelta } },
+            { session }
+          );
+        }
+      }
+
+      // Update expense document
+      oldExpense.title = title;
+      oldExpense.amount = parseFloat(amount);
+      oldExpense.paidBy = paidBy;
+      oldExpense.owedBy = owedByArray;
+      if (groupId) oldExpense.group = groupId;
+      if (clientCreatedAt) oldExpense.createdAt = new Date(clientCreatedAt);
+
+      await oldExpense.save({ session });
+      updatedExpense = oldExpense;
+    });
+
+    // ⚡ Return HTTP 200 IMMEDIATELY for instant response
+    res.status(200).json({ success: true, expense: updatedExpense });
+
+    // 🚀 Non-blocking Async Background Work (FCM, Activity Logs, Snapshots)
+    setImmediate(async () => {
+      try {
+        const targetGroupId = groupId || oldExpenseObject?.group;
+        let notifyUsers = [];
+        if (targetGroupId) {
+          const group = await Group.findById(targetGroupId).populate(
+            "members",
+            "fcmToken username"
+          );
+          notifyUsers = group?.members || [];
+        } else {
+          notifyUsers = await User.find(
+            { _id: { $in: involvedMembers } },
+            "fcmToken username"
+          );
+        }
+
+        const tokens = notifyUsers.map((u) => u.fcmToken).filter(Boolean);
+        if (tokens.length > 0) {
+          const notificationBody = `Expense "${title}" has been updated for ₹${amount}.`;
+          sendMultipleNotifications(tokens, title, notificationBody).catch((err) =>
+            console.error("Async FCM push notification error:", err)
+          );
+        }
+
+        // Bulk insert activity logs (1 DB call instead of N sequential calls)
+        const payerUser = await User.findById(paidBy).select("username");
+        const payerUsername = payerUser?.username || "Someone";
+        const groupObj = targetGroupId
+          ? await Group.findById(targetGroupId).select("name")
+          : null;
+        const groupName = groupObj?.name;
+
+        const activityLogs = updatedExpense.owedBy
+          .filter((owed) => owed.user.toString() !== paidBy.toString())
+          .map((owed) => ({
+            recipient: owed.user,
+            sender: paidBy,
+            type: "expense_edited",
+            message: groupName
+              ? `${payerUsername} edited the expense "${title}" in ${groupName}`
+              : `${payerUsername} edited the expense "${title}"`,
+            referenceId: expenseId,
+          }));
+
+        if (activityLogs.length > 0) {
+          await Notification.insertMany(activityLogs);
+        }
+      } catch (asyncNotifErr) {
+        console.error("Async notification background processing error:", asyncNotifErr);
+      }
+
+      // Background snapshot update
+      try {
+        if (oldExpenseObject && updatedExpense) {
+          await applyExpenseUpdate(oldExpenseObject, updatedExpense);
+        }
+      } catch (snapErr) {
+        console.error("Async snapshot update error:", snapErr);
+      }
+    });
+  } catch (error) {
+    console.error("Error in updateGroupExpenseController:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  } finally {
+    session.endSession();
+  }
+};
+
 export {
   createGroup,
   getGroupDetails,
@@ -1372,6 +1577,7 @@ export {
   removeMembers,
   addafterDeleteExpenseController,
   deleteExpenseController,
+  updateGroupExpenseController,
   getExpenseController,
   getTopCategoriesForGroupExpense,
   getSubCategoriesForGroup,

@@ -332,3 +332,37 @@ export async function applyExpenseDelete(expense) {
     invalidateAICache(userId);
   }
 }
+
+export async function applyExpenseUpdate(oldExpense, newExpense) {
+  const affectedUsers = new Set([
+    (oldExpense.paidBy?._id || oldExpense.paidBy).toString(),
+    ...oldExpense.owedBy.map(o => (o.user?._id || o.user).toString()),
+    (newExpense.paidBy?._id || newExpense.paidBy).toString(),
+    ...newExpense.owedBy.map(o => (o.user?._id || o.user).toString())
+  ]);
+
+  for (const userId of affectedUsers) {
+    let snapshot = await UserFinancialSnapshot.findOne({ userId });
+
+    if (!snapshot) {
+      try {
+        await createSnapshot(userId);
+      } catch (e) {
+        console.error("Error creating snapshot in applyExpenseUpdate:", e);
+      }
+      continue;
+    }
+
+    snapshot.groups = [];
+    snapshot.friends = [];
+    snapshot.spending.categoryTotals.clear();
+
+    await buildFullSnapshot(snapshot, userId);
+
+    snapshot.version += 1;
+    snapshot.lastUpdated = new Date();
+    await snapshot.save();
+    invalidateAICache(userId);
+  }
+}
+

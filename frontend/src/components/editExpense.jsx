@@ -177,15 +177,9 @@ const EditExpense = () => {
     try {
       setIsLoading(true);
 
-      // 1) DELETE the old expense
-      await api.delete(
-        `/group/del-expense/${expenseId}`,
-        { data: { action: "edit" } }
-      );
-
-      // 2) POST the new one
-      const response = await api.post(
-        `/group/del-add-expense`,
+      // Single atomic fast PUT endpoint
+      const response = await api.put(
+        `/group/expense/${expenseId}`,
         payload
       );
       if (response.status === 200) {

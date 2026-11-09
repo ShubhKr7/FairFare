@@ -379,7 +379,7 @@ const AddFriend = () => {
   };
 
   const getInviteMsg = () => {
-    const inviteLink = `https://fair-fare-phi.vercel.app/signup/${userId}`;
+    const inviteLink = `https://fairfare-beta.vercel.app/signup/${userId}`;
     const referrerName = getReferrerName();
     return `💸 *Fair Fare Invitation* 💸\n\nHey! 🚀 *${referrerName}* has invited you to join *Fair Fare*, the ultimate app to track and split expenses seamlessly with friends! 🤝✨\n\nNo more awkward "you owe me" conversations! 😉 Let's split bills, track trips, and stay square.\n\nClick the link below to sign up and connect automatically:\n🔗 ${inviteLink}\n\nLet's start splitting smarter! 🍕✈️🎉`;
   };
@@ -404,14 +404,14 @@ const AddFriend = () => {
   };
 
   const handleShareTelegram = () => {
-    const inviteLink = `https://fair-fare-phi.vercel.app/signup/${userId}`;
+    const inviteLink = `https://fairfare-beta.vercel.app/signup/${userId}`;
     const inviteMsg = getInviteMsg();
     const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(inviteMsg)}`;
     window.open(telegramUrl, "_blank");
   };
 
   const handleShareNative = async () => {
-    const inviteLink = `https://fair-fare-phi.vercel.app/signup/${userId}`;
+    const inviteLink = `https://fairfare-beta.vercel.app/signup/${userId}`;
     const inviteMsg = getInviteMsg();
 
     if (navigator.share) {

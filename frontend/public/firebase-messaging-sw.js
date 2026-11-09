@@ -41,7 +41,7 @@ messaging.onBackgroundMessage((payload) => {
     body: payload.data.body,
     icon: "./newIconV3-512x512.png", // 👈 your app’s icon here
     // badge: payload.data.badge || "/badge-icon.png", // optional
-    data: { url: payload.data.url || "https://fair-fare-phi.vercel.app" }, // 👈 fallback
+    data: { url: payload.data.url || "https://fairfare-beta.vercel.app" }, // 👈 fallback
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);

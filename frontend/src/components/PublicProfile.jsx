@@ -331,7 +331,7 @@ const PublicProfile = () => {
 
             <motion.button
               onClick={async () => {
-                const profileLink = `https://fair-fare-phi.vercel.app/public-profile/${friendId}`;
+                const profileLink = `https://fairfare-beta.vercel.app/public-profile/${friendId}`;
                 const message = `Hey! 👋\n\nCheck out my FairFare profile:\n${profileLink}`;
                 if (navigator.share) {
                   await navigator.share({

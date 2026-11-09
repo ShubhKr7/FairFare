@@ -98,7 +98,7 @@ const TransactionHistory = () => {
     const element = document.getElementById(`tx-card-${txId}`);
     if (!element) return;
 
-    const shareLink = `https://fair-fare-phi.vercel.app/transaction-history/${friendId}?sharer=${userId}#${txId}`;
+    const shareLink = `https://fairfare-beta.vercel.app/transaction-history/${friendId}?sharer=${userId}#${txId}`;
     let shareText = `Hey! Just a friendly reminder about the transaction of ₹${amount}. You can check the details here: ${shareLink}`;
     if (payerUpi) {
       shareText += `\n\nPay to UPI: ${payerUpi}`;
@@ -200,8 +200,8 @@ const TransactionHistory = () => {
     } else if (netBalance < 0 && friendName?.upiId) {
       shareText += `\n\nPay to UPI: ${friendName.upiId}`;
     }
-    
-    const chatLink = `https://fair-fare-phi.vercel.app/transaction-history/${friendId}?sharer=${userId}`;
+
+    const chatLink = `https://fairfare-beta.vercel.app/transaction-history/${friendId}?sharer=${userId}`;
     shareText += `\n\nView our transactions: ${chatLink}`;
 
     shareText += `\n\n— Tracked on FairFare`;

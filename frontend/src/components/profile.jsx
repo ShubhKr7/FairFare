@@ -298,7 +298,7 @@ const ProfileEnhanced = () => {
 
   const handleShareProfile = async () => {
     const userId = Cookies.get("id");
-    const profileLink = `https://fair-fare-phi.vercel.app/public-profile/${userId}`;
+    const profileLink = `https://fairfare-beta.vercel.app/public-profile/${userId}`;
     const message = `Hey! 👋
 
 Check out my FairFare profile:
@@ -307,7 +307,7 @@ Check out my FairFare profile:
 ${profileLink}
 
 📧 Or use my email to add me manually:
-https://fair-fare-phi.vercel.app/addFriend
+https://fairfare-beta.vercel.app/addFriend
 
 Username:
 ${user?.username}

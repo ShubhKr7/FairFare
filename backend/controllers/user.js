@@ -997,7 +997,7 @@ const inviteFriend = async (req, res) => {
     // Friend does not exist — send invitation email via our mail microservice
     // In your inviteFriend controller
     const encodedEmail = encodeURIComponent(email);
-    const inviteLink = `https://fair-fare-phi.vercel.app/signup/${user._id}?email=${encodedEmail}`;
+    const inviteLink = `https://fairfare-beta.vercel.app/signup/${user._id}?email=${encodedEmail}`;
 
     try {
       await sendMail({

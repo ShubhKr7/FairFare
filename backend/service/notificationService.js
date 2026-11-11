@@ -7,8 +7,8 @@ const sendService = async (token, title, body) => {
     data: {
       title,
       body,
-      // image: 'https://fair-fare-phi.vercel.app/newIcon-192x192.png',
-      url: 'https://fair-fare-phi.vercel.app'
+      // image: 'https://fairfare-beta.vercel.app/newIcon-192x192.png',
+      url: 'https://fairfare-beta.vercel.app'
       // badge: 'http://localhost:5173/newIconV2-512x512.png',
     },
   };
@@ -35,13 +35,13 @@ const sendToMultiple = async (tokens, title, body) => {
     data: {
       title,
       body,
-      // image: 'https://fair-fare-phi.vercel.app/newIcon-192x192.png',
-      url: 'https://fair-fare-phi.vercel.app'
+      // image: 'https://fairfare-beta.vercel.app/newIcon-192x192.png',
+      url: 'https://fairfare-beta.vercel.app'
       // badge: 'http://localhost:5173/newIconV2-512x512.png',
     },
     tokens, // ✅ multiple tokens go here
   };
- console.log("inside sendtomulitple");
+  console.log("inside sendtomulitple");
   try {
     const res = await admin.messaging().sendEachForMulticast(payload);
     console.log(`Notifications sent: ${res.successCount} success, ${res.failureCount} failed`);

@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import api from "../utils/api";
+import { sortByName } from "../utils/sortByName";
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 const handleScrollTop = () => {
@@ -46,7 +47,7 @@ const AddMembers = () => {
             (f) => !existingTripMembers.some((member) => member._id === f._id)
           ); // Exclude already added
 
-        setFriends(friendsList);
+        setFriends(sortByName(friendsList));
       }
     } catch (err) {
       console.error("Error loading friends:", err);
@@ -62,8 +63,10 @@ const AddMembers = () => {
     setSearch("");
   };
 
-  const filteredFriends = friends.filter((friend) =>
-    friend.username.toLowerCase().includes(search.toLowerCase())
+  const filteredFriends = sortByName(
+    friends.filter((friend) =>
+      friend.username.toLowerCase().includes(search.toLowerCase())
+    )
   );
 
   const handleAdd = async () => {

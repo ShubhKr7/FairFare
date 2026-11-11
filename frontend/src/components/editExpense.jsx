@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import api from "../utils/api";
+import { sortByName } from "../utils/sortByName";
 
 const handleScrollTop = () => {
   window.scrollTo({
@@ -52,7 +53,7 @@ const EditExpense = () => {
       const groupMembers = currentGroupLocal
         ? JSON.parse(currentGroupLocal).members
         : [];
-      setMembers(groupMembers);
+      setMembers(sortByName(groupMembers));
     } catch (err) {
       console.error("Error loading user and friends from localStorage:", err);
     }
@@ -387,7 +388,7 @@ const EditExpense = () => {
                   <option value="" disabled>
                     Select
                   </option>
-                  {members.map((member) => (
+                  {sortByName(members).map((member) => (
                     <option
                       key={member._id}
                       value={member._id}
@@ -482,7 +483,7 @@ const EditExpense = () => {
 
             {/* Members List */}
             <div className="space-y-2">
-              {members.map((member) => {
+              {sortByName(members).map((member) => {
                 const isSelected = selected.includes(member._id);
                 // Inline calculation for equal split display if variable not present
                 const displayEqualAmount = (

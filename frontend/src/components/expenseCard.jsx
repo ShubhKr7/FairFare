@@ -3,6 +3,7 @@ import { Trash2, Edit3, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Cookies from "js-cookie";
 import api from "../utils/api";
+import { sortByName } from "../utils/sortByName";
 import { motion, AnimatePresence } from "framer-motion";
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
@@ -293,7 +294,7 @@ const ExpenseCard = ({
               Split Breakdown
             </p>
             <div className="space-y-2">
-              {beneficiaries?.map((person, index) => (
+              {sortByName(beneficiaries || []).map((person, index) => (
                 <div
                   key={index}
                   className="flex items-center justify-between group/row"

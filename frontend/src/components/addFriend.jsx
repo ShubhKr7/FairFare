@@ -20,6 +20,7 @@ import {
   Copy,
 } from "lucide-react";
 import api from "../utils/api";
+import { sortByName } from "../utils/sortByName";
 import Suggestions from "./Suggestions";
 import { motion } from "framer-motion";
 
@@ -29,7 +30,7 @@ const AddFriend = () => {
   const [friends, setFriends] = useState(() => {
     try {
       const saved = sessionStorage.getItem("selectedFriends");
-      return saved ? JSON.parse(saved) : [];
+      return saved ? sortByName(JSON.parse(saved)) : [];
     } catch {
       return [];
     }
@@ -77,7 +78,7 @@ const AddFriend = () => {
       if (userId) {
         try {
           const reqRes = await api.get(`/user/friend-requests/${userId}`);
-          setRequests(reqRes.data || []);
+          setRequests(sortByName(reqRes.data || []));
         } catch (e) {
           console.error("Failed to fetch requests", e);
         }
@@ -188,7 +189,7 @@ const AddFriend = () => {
       });
       // Refresh requests list
       const res = await api.get(`/user/friend-requests/${userId}`);
-      setRequests(res.data || []);
+      setRequests(sortByName(res.data || []));
 
       toast.success(
         action === "approve"
@@ -246,7 +247,7 @@ const AddFriend = () => {
             profilePhotoUrl: u.profilePhotoUrl || "/userIcon.png",
           }));
 
-        setSuggestions(mapped);
+        setSuggestions(sortByName(mapped));
       } catch (err) {
         if (axios.isCancel(err) || err.name === "CanceledError") {
           // ignore
@@ -290,15 +291,17 @@ const AddFriend = () => {
       return;
     }
 
-    setFriends((prev) => [
-      ...prev,
-      {
-        _id: userObj._id,
-        email: userObj.email,
-        name: userObj.username,
-        profilePhotoUrl: userObj.profilePhotoUrl,
-      },
-    ]);
+    setFriends((prev) =>
+      sortByName([
+        ...prev,
+        {
+          _id: userObj._id,
+          email: userObj.email,
+          name: userObj.username,
+          profilePhotoUrl: userObj.profilePhotoUrl,
+        },
+      ])
+    );
 
     setSearch("");
     setDebouncedQuery("");

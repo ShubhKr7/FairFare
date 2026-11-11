@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Pencil, Check, X, ArrowUpRight, Image as ImageIcon, Camera, Loader2, CalendarDays, Trash2 } from "lucide-react";
 import DatePicker from "./DatePicker";
+import { sortByName } from "../utils/sortByName";
 import ExpenseCard from "./expenseCard";
 import { motion } from "framer-motion";
 import { FaChartBar } from "react-icons/fa";
@@ -202,7 +203,7 @@ const TripDetails = () => {
       }));
 
       localStorage.setItem("tripMembers", JSON.stringify(groupMembers));
-      setMembers(groupMembers);
+      setMembers(sortByName(groupMembers));
     } catch (e) {
       toast.error("Failed to load trip");
     } finally {
@@ -670,7 +671,7 @@ const TripDetails = () => {
               {/* Members List - Compact on Mobile */}
               <div className="space-y-2 sm:space-y-3 max-h-[180px] sm:max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
                 {members.length > 0 ? (
-                  members.map((member, index) => {
+                  sortByName(members).map((member, index) => {
                     const storedUser = localStorage.getItem("user");
                     const currentUser = storedUser ? JSON.parse(storedUser) : null;
                     const isCurrentUser = currentUser && member._id === currentUser._id;
@@ -769,7 +770,7 @@ const TripDetails = () => {
             {/* Filter by Members */}
             {members.length > 0 && (
               <div className="flex overflow-x-auto gap-2 pb-4 mb-2 custom-scrollbar">
-                {members.map((member) => {
+                {sortByName(members).map((member) => {
                   const isSelected = selectedMembers.includes(member._id);
                   return (
                     <button

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Users, UserPlus, Sparkles } from "lucide-react";
+import { sortByName } from "../utils/sortByName";
 
 export default function Suggestions({
   suggestions = [],
@@ -69,7 +70,12 @@ export default function Suggestions({
             Loading suggestions...
           </div>
         ) : suggestions.length > 0 ? (
-          suggestions.map((suggestion) => (
+          sortByName(
+            suggestions.map((suggestion) => ({
+              ...suggestion,
+              username: suggestion.user?.username,
+            }))
+          ).map((suggestion) => (
             <motion.div
               key={suggestion.user._id}
               initial={{ opacity: 0, y: 10 }}

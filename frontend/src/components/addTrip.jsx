@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-hot-toast";
 import api from "../utils/api";
 import DatePicker from "./DatePicker";
+import { sortByName } from "../utils/sortByName";
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 const handleScrollTop = () => {
@@ -34,8 +35,10 @@ const AddTrip = () => {
   const searchRef = useRef(null);
 
   // Filtered (visible) friends according to search
-  const filteredFriends = friends.filter((f) =>
-    f.friend?.username?.toLowerCase().includes(search.toLowerCase())
+  const filteredFriends = sortByName(
+    friends.filter((f) =>
+      f.friend?.username?.toLowerCase().includes(search.toLowerCase())
+    )
   );
 
   useEffect(() => {
@@ -45,7 +48,7 @@ const AddTrip = () => {
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("user"));
     if (user && user?.friends) {
-      setFriends(user.friends); // assuming user.friends is an array of friend objects
+      setFriends(sortByName(user.friends)); // assuming user.friends is an array of friend objects
     }
   }, []);
 

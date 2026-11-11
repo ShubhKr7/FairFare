@@ -5,6 +5,7 @@ import api from "../utils/api";
 import toast from "react-hot-toast";
 import Cookies from "js-cookie";
 import { motion, AnimatePresence } from "framer-motion";
+import { sortByName } from "../utils/sortByName";
 
 const QuickAddExpenseModal = ({ isOpen, onClose, user, autoStartVoice }) => {
     const navigate = useNavigate();
@@ -62,7 +63,7 @@ const QuickAddExpenseModal = ({ isOpen, onClose, user, autoStartVoice }) => {
             const userId = Cookies.get("id");
             const response = await api.get(`/user/${userId}`);
             if (response.status === 200 && response.data.user) {
-                setFriends(response.data.user.friends || []);
+                setFriends(sortByName(response.data.user.friends || []));
             }
         } catch (error) {
             console.error("Failed to load friends:", error);
@@ -93,9 +94,11 @@ const QuickAddExpenseModal = ({ isOpen, onClose, user, autoStartVoice }) => {
         trip.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const filteredFriends = friends
-        .filter(f => f.friend?.username?.toLowerCase().includes(searchQuery.toLowerCase()))
-        .sort((a, b) => (a.friend?.username || "").localeCompare(b.friend?.username || ""));
+    const filteredFriends = sortByName(
+        friends.filter(f =>
+            f.friend?.username?.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+    );
 
     // --- AI Magic ---
     const handleMagicAdd = async (passedPrompt) => {

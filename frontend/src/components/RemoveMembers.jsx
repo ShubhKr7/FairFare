@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import api from "../utils/api";
+import { sortByName } from "../utils/sortByName";
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 const handleScrollTop = () => {
@@ -43,7 +44,7 @@ const RemoveMembers = () => {
             username: m.username,
           }));
 
-        setTripMembers(membersList); // Reusing 'friends' as trip members list
+        setTripMembers(sortByName(membersList)); // Reusing 'friends' as trip members list
       }
     } catch (err) {
       console.error("Error loading trip members:", err);
@@ -60,8 +61,10 @@ const RemoveMembers = () => {
     setSearch("");
   };
 
-  const filteredMembers = tripMembers.filter((member) =>
-    member.username.toLowerCase().includes(search.toLowerCase())
+  const filteredMembers = sortByName(
+    tripMembers.filter((member) =>
+      member.username.toLowerCase().includes(search.toLowerCase())
+    )
   );
 
   const handleRemove = async () => {

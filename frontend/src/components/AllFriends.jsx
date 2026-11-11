@@ -8,6 +8,7 @@ import { FixedSizeList as List } from "react-window";
 import api from "../utils/api";
 import Cookies from "js-cookie";
 import { motion } from "framer-motion";
+import { sortByName } from "../utils/sortByName";
 
 const handleScrollTop = () => {
   window.scrollTo({
@@ -45,7 +46,7 @@ const AllFriendsPage = () => {
     if (storedUser) {
       const parsedUser = JSON.parse(storedUser);
       setUser(parsedUser);
-      setFriends(parsedUser.friends || []);
+      setFriends(sortByName(parsedUser.friends || []));
     }
   }, []);
 
@@ -193,16 +194,7 @@ const AllFriendsPage = () => {
     f.friend?.username?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const sortedFriends = [
-    ...filteredFriends
-      .filter((f) => f.balance !== 0)
-      .sort((a, b) => b.balance - a.balance),
-    ...filteredFriends
-      .filter((f) => f.balance === 0)
-      .sort((a, b) =>
-        (a.friend?.username || "").localeCompare(b.friend?.username || "")
-      ),
-  ];
+  const sortedFriends = sortByName(filteredFriends);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col relative font-sans selection:bg-indigo-500/30 pb-20 md:pb-0">

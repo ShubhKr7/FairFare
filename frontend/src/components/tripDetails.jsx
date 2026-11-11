@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Pencil, Check, X, ArrowUpRight, Image as ImageIcon, Camera, Loader2, CalendarDays, Trash2 } from "lucide-react";
+import { ArrowLeft, Pencil, Check, X, ArrowUpRight, Image as ImageIcon, Camera, Loader2, CalendarDays, Trash2, Search } from "lucide-react";
 import DatePicker from "./DatePicker";
 import ExpenseCard from "./expenseCard";
 import { motion } from "framer-motion";
@@ -45,6 +45,9 @@ const TripDetails = () => {
   const [loading, setLoading] = useState(true); // Loading state for the GET request
   const [expenses, setExpenses] = useState([]);
   const [selectedMembers, setSelectedMembers] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const debounceTimer = useRef(null);
   const [showLeaveConfirmation, setShowLeaveConfirmation] = useState(false);
   const [showArchiveConfirmation, setShowArchiveConfirmation] = useState(false);
   const [showBannerDeleteConfirm, setShowBannerDeleteConfirm] = useState(false);
@@ -53,6 +56,9 @@ const TripDetails = () => {
   const [loadingExpenses, setLoadingExpenses] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const loaderRef = useRef(null);
+  const isFetchingRef = useRef(false);
+  const cursorRef = useRef(null);
+  const hasMoreRef = useRef(true);
 
   // Inline editing state
   const [isEditing, setIsEditing] = useState(false);
@@ -219,79 +225,107 @@ const TripDetails = () => {
     fetchMeta();
   }, [tripId]);
 
-  //Fetching Group Expenses
+  // Debounce search query changes by 300ms
   useEffect(() => {
-    if (loadingExpenses || !hasMore) return;
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+    }, 300);
+
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, [searchQuery]);
+
+  // Fetching Group Expenses (debounced / locked to prevent duplicate race conditions)
+  const loadExpenses = useCallback(
+    async (reset = false) => {
+      if (isFetchingRef.current) return;
+      if (!reset && !hasMoreRef.current) return;
+
+      isFetchingRef.current = true;
+      setLoadingExpenses(true);
+
+      try {
+        const currentCursor = reset ? null : cursorRef.current;
+        const params = { limit: 20 };
+        if (currentCursor) {
+          params.cursor = currentCursor;
+        }
+
+        if (debouncedSearch) {
+          params.search = debouncedSearch;
+        }
+
+        if (selectedMembers.length > 0) {
+          params.participants = selectedMembers.join(",");
+        }
+
+        const res = await api.get(`${API_BASE}/group/${tripId}/expenses`, {
+          params,
+        });
+
+        const newExpenses = res.data.expenses || [];
+        const nextCursor = res.data.nextCursor;
+        const hasNext = Boolean(nextCursor);
+
+        cursorRef.current = nextCursor;
+        hasMoreRef.current = hasNext;
+        setCursor(nextCursor);
+        setHasMore(hasNext);
+
+        setExpenses((prev) => {
+          if (reset) {
+            return newExpenses;
+          }
+          // De-duplicate by _id to guarantee no duplicate cards
+          const existingIds = new Set(prev.map((e) => e._id));
+          const filteredNew = newExpenses.filter((e) => !existingIds.has(e._id));
+          return [...prev, ...filteredNew];
+        });
+      } catch (err) {
+        toast.error("Failed to load expenses");
+      } finally {
+        isFetchingRef.current = false;
+        setLoadingExpenses(false);
+      }
+    },
+    [tripId, selectedMembers, debouncedSearch]
+  );
+
+  // Initial fetch / reset on tripId, selectedMembers, or debouncedSearch change
+  useEffect(() => {
+    cursorRef.current = null;
+    hasMoreRef.current = true;
+    setCursor(null);
+    setHasMore(true);
+    loadExpenses(true);
+  }, [loadExpenses]);
+
+  // Infinite scroll trigger via IntersectionObserver
+  useEffect(() => {
+    const el = loaderRef.current;
+    if (!el) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) {
-          loadExpenses();
+        if (
+          entries[0].isIntersecting &&
+          hasMoreRef.current &&
+          !isFetchingRef.current
+        ) {
+          loadExpenses(false);
         }
       },
-      { threshold: 1 }
+      { threshold: 0.1 }
     );
 
-    if (loaderRef.current) {
-      observer.observe(loaderRef.current);
-    }
+    observer.observe(el);
 
     return () => {
-      if (loaderRef.current) {
-        observer.unobserve(loaderRef.current);
-      }
+      observer.disconnect();
     };
-  }, [loaderRef.current, hasMore, loadingExpenses, cursor, selectedMembers, expenses]);
-
-  useEffect(() => {
-    const onScroll = () => {
-      const bottom =
-        window.innerHeight + window.scrollY >= document.body.offsetHeight - 300;
-
-      if (bottom) {
-        loadExpenses();
-      }
-    };
-
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [cursor, hasMore, loadingExpenses, selectedMembers, expenses]);
-
-  useEffect(() => {
-    // Reset and fetch when selected members filter changes
-    loadExpenses(true);
-  }, [selectedMembers]);
-
-  const loadExpenses = async (reset = false) => {
-    if (!reset && (!hasMore || loadingExpenses)) return;
-
-    setLoadingExpenses(true);
-
-    try {
-      const currentCursor = reset ? null : cursor;
-      const params = { limit: 20, cursor: currentCursor };
-
-      if (selectedMembers.length > 0) {
-        params.participants = selectedMembers.join(',');
-      }
-
-      const res = await api.get(`${API_BASE}/group/${tripId}/expenses`, {
-        params,
-      });
-
-      if (reset) {
-        setExpenses(res.data.expenses);
-      } else {
-        setExpenses((prev) => [...prev, ...res.data.expenses]);
-      }
-      setCursor(res.data.nextCursor);
-      setHasMore(Boolean(res.data.nextCursor));
-    } catch (err) {
-      toast.error("Failed to load expenses");
-    } finally {
-      setLoadingExpenses(false);
-    }
-  };
+  }, [loadExpenses]);
 
   // Handle adding new members (avoid adding existing ones)
   const handleAddMember = () => {
@@ -322,7 +356,7 @@ const TripDetails = () => {
     localStorage.removeItem("currentGroup");
 
     // Navigate back to the dashboard
-    navigate(-1);
+    navigate(`/dash`);
   };
 
   const HandleLeaveGroup = async () => {
@@ -401,6 +435,21 @@ const TripDetails = () => {
     // 2c) Re-fetch meta silently to update totals/balances
     fetchMeta(true);
   };
+
+  const trimmedSearch = searchQuery.trim().toLowerCase();
+  const filteredExpenses = expenses
+    .filter((expense) => {
+      if (!trimmedSearch) return true;
+      const title = String(expense.title || "").toLowerCase();
+      const category = String(expense.category || "").toLowerCase();
+      const subcategory = String(expense.subcategory || "").toLowerCase();
+      return (
+        title.includes(trimmedSearch) ||
+        category.includes(trimmedSearch) ||
+        subcategory.includes(trimmedSearch)
+      );
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 relative font-sans selection:bg-indigo-500/30">
@@ -747,7 +796,7 @@ const TripDetails = () => {
             transition={{ duration: 0.5, ease: "easeOut", delay: 0.45 }}
             className="lg:col-span-8"
           >
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
                 Mission Log
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -758,6 +807,34 @@ const TripDetails = () => {
               >
                 <span>+</span> Add Expense
               </button>
+            </div>
+
+            {/* Search Bar */}
+            <div className="relative mb-4 flex items-center">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search expenses by title..."
+                className="w-full bg-zinc-900/60 border border-white/10 rounded-xl pl-10 pr-16 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all shadow-inner"
+              />
+              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                {loadingExpenses && debouncedSearch && (
+                  <Loader2 className="w-3.5 h-3.5 text-indigo-400 animate-spin mr-1" />
+                )}
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="p-1.5 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+                    title="Clear search"
+                    aria-label="Clear search"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {loadingExpenses && (
@@ -794,7 +871,7 @@ const TripDetails = () => {
             )}
 
             <div className="space-y-4 min-h-[300px]">
-              {expenses.length === 0 ? (
+              {expenses.length === 0 && !debouncedSearch && !searchQuery.trim() ? (
                 <div className="h-64 flex flex-col items-center justify-center border-2 border-dashed border-zinc-800 rounded-3xl bg-zinc-900/20 text-center p-8">
                   <div className="w-16 h-16 bg-zinc-800/50 rounded-full flex items-center justify-center mb-4 text-zinc-600">
                     <svg
@@ -816,10 +893,24 @@ const TripDetails = () => {
                     Start recording your expenses to populate the mission log.
                   </p>
                 </div>
+              ) : filteredExpenses.length === 0 ? (
+                <div className="h-56 flex flex-col items-center justify-center border-2 border-dashed border-zinc-800/80 rounded-2xl bg-zinc-900/20 text-center p-6">
+                  <Search className="w-8 h-8 text-zinc-600 mb-2" />
+                  <h3 className="text-base font-semibold text-zinc-300">No matching expenses</h3>
+                  <p className="text-xs text-zinc-500 mt-1 max-w-xs">
+                    No expenses match &quot;{searchQuery.trim()}&quot;. Try a different keyword.
+                  </p>
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="mt-3 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-zinc-300 border border-white/5 transition-colors"
+                  >
+                    Clear Search
+                  </button>
+                </div>
               ) : (
-                expenses.map((expense, idx) => (
+                filteredExpenses.map((expense, idx) => (
                   <ExpenseCard
-                    key={idx}
+                    key={expense._id || idx}
                     _id={expense._id}
                     title={expense.title}
                     category={expense.category}

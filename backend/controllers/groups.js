@@ -368,6 +368,16 @@ const getGroupExpenses = async (req, res) => {
     const query = { group: groupId };
     if (cursor) query.createdAt = { $lt: cursor };
 
+    if (req.query.search && req.query.search.trim()) {
+      const sanitized = req.query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = { $regex: sanitized, $options: "i" };
+      query.$or = [
+        { title: searchRegex },
+        { category: searchRegex },
+        { subcategory: searchRegex }
+      ];
+    }
+
     if (req.query.participants) {
       const participantsArray = req.query.participants.split(',');
       if (participantsArray.length > 0) {

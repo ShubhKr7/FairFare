@@ -205,6 +205,7 @@ const TripDetails = () => {
       const groupMembers = (res.data.members || []).map((m) => ({
         _id: m._id,
         username: m.username,
+        profilePhotoUrl: m.profilePhotoUrl || null,
       }));
 
       localStorage.setItem("tripMembers", JSON.stringify(groupMembers));
@@ -723,6 +724,11 @@ const TripDetails = () => {
                     const storedUser = localStorage.getItem("user");
                     const currentUser = storedUser ? JSON.parse(storedUser) : null;
                     const isCurrentUser = currentUser && member._id === currentUser._id;
+                    const photoUrl = isCurrentUser
+                      ? currentUser?.profilePhotoUrl || member?.profilePhotoUrl
+                      : member?.profilePhotoUrl || currentUser?.friends?.find((f) => (f.friend?._id || f.friend) === member._id)?.friend?.profilePhotoUrl;
+                    const memberName = typeof member === "string" ? member : member?.username || "";
+                    const memberInitial = typeof member === "string" ? member.charAt(0) : member?.username?.charAt(0) || "?";
 
                     return (
                       <div key={index}>
@@ -731,33 +737,55 @@ const TripDetails = () => {
                             <div
                               className="flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 rounded-xl hover:bg-white/5 transition-colors group cursor-pointer"
                             >
-                              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center text-indigo-400 font-bold text-xs sm:text-sm shadow-inner group-hover:border-indigo-500/50 transition-colors">
-                                {typeof member === "string"
-                                  ? member.charAt(0)
-                                  : member?.username?.charAt(0) || "?"}
+                              {photoUrl ? (
+                                <img
+                                  src={photoUrl}
+                                  alt={memberName}
+                                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border border-white/10 shadow-inner group-hover:border-indigo-500/50 transition-colors shrink-0"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = "none";
+                                    if (e.currentTarget.nextElementSibling) {
+                                      e.currentTarget.nextElementSibling.style.display = "flex";
+                                    }
+                                  }}
+                                />
+                              ) : null}
+                              <div
+                                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center text-indigo-400 font-bold text-xs sm:text-sm shadow-inner group-hover:border-indigo-500/50 transition-colors shrink-0 ${photoUrl ? "hidden" : ""}`}
+                              >
+                                {memberInitial}
                               </div>
                               <span className="text-xs sm:text-sm text-zinc-300 font-medium truncate flex-1">
-                                {typeof member === "string"
-                                  ? member
-                                  : member?.username}
+                                {memberName}
                               </span>
-                              <ArrowUpRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-indigo-400 transition-colors" />
+                              <ArrowUpRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-indigo-400 transition-colors shrink-0" />
                             </div>
                           </Link>
                         ) : (
                           <Link to={`/transaction-history/${member._id}`}>
                             <div className="flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 rounded-xl hover:bg-white/5 transition-colors group">
-                              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center text-indigo-400 font-bold text-xs sm:text-sm shadow-inner group-hover:border-indigo-500/50 transition-colors">
-                                {typeof member === "string"
-                                  ? member.charAt(0)
-                                  : member?.username?.charAt(0) || "?"}
+                              {photoUrl ? (
+                                <img
+                                  src={photoUrl}
+                                  alt={memberName}
+                                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border border-white/10 shadow-inner group-hover:border-indigo-500/50 transition-colors shrink-0"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = "none";
+                                    if (e.currentTarget.nextElementSibling) {
+                                      e.currentTarget.nextElementSibling.style.display = "flex";
+                                    }
+                                  }}
+                                />
+                              ) : null}
+                              <div
+                                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center text-indigo-400 font-bold text-xs sm:text-sm shadow-inner group-hover:border-indigo-500/50 transition-colors shrink-0 ${photoUrl ? "hidden" : ""}`}
+                              >
+                                {memberInitial}
                               </div>
                               <span className="text-xs sm:text-sm text-zinc-300 font-medium truncate flex-1">
-                                {typeof member === "string"
-                                  ? member
-                                  : member?.username}
+                                {memberName}
                               </span>
-                              <ArrowUpRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-indigo-400 transition-colors" />
+                              <ArrowUpRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-indigo-400 transition-colors shrink-0" />
                             </div>
                           </Link>
                         )}

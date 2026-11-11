@@ -42,6 +42,7 @@ const AddExpense = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
+  const [showPayerPopup, setShowPayerPopup] = useState(false);
   const [calcExpr, setCalcExpr] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
@@ -68,7 +69,13 @@ const AddExpense = () => {
     try {
       const currentGroup = localStorage.getItem("currentGroup");
       const groupMembers = currentGroup ? JSON.parse(currentGroup).members : [];
-      setMembers(groupMembers);
+      setMembers(
+        [...groupMembers].sort((a, b) =>
+          (a.username || "").localeCompare(b.username || "", undefined, {
+            sensitivity: "base",
+          })
+        )
+      );
     } catch (err) {
       console.error("Error loading user and friends from localStorage:", err);
     }
@@ -513,7 +520,7 @@ const AddExpense = () => {
           </div>
 
           {/* 2. DETAILS CARD (Title & Payer) */}
-          <div className="bg-zinc-900/40 border border-white/5 rounded-2xl overflow-hidden backdrop-blur-sm">
+          <div className="relative z-20 bg-zinc-900/40 border border-white/5 rounded-2xl overflow-visible backdrop-blur-sm">
             {/* Title Input */}
             <div className="border-b border-white/5 p-1">
               <input
@@ -529,27 +536,21 @@ const AddExpense = () => {
             <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 bg-zinc-900/60">
               <span className="text-sm text-zinc-400 font-medium">Paid by</span>
               <div className="relative">
-                <select
-                  value={paidBy}
-                  onChange={(e) => setPaidBy(e.target.value)}
-                  className="appearance-none bg-indigo-600/10 border border-indigo-500/30 text-indigo-300 py-1.5 pl-3 pr-8 rounded-lg text-sm font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer hover:bg-indigo-600/20 transition-colors"
+                <button
+                  type="button"
+                  onClick={() => setShowPayerPopup((isOpen) => !isOpen)}
+                  className="min-w-28 flex items-center justify-between gap-3 bg-indigo-600/10 border border-indigo-500/30 text-indigo-300 py-1.5 pl-3 pr-2 rounded-lg text-sm font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 hover:bg-indigo-600/20 transition-colors"
+                  aria-haspopup="listbox"
+                  aria-expanded={showPayerPopup}
                 >
-                  <option value="" disabled>
-                    Select
-                  </option>
-                  {members.map((member) => (
-                    <option
-                      key={member._id}
-                      value={member._id}
-                      className="bg-zinc-900 text-white"
-                    >
-                      {member.username}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-indigo-400">
+                  <span className="truncate">
+                    {members.find((member) => member._id === paidBy)?.username ||
+                      "Select"}
+                  </span>
                   <svg
-                    className="w-3 h-3"
+                    className={`w-3 h-3 shrink-0 transition-transform ${
+                      showPayerPopup ? "rotate-180" : ""
+                    }`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -561,7 +562,39 @@ const AddExpense = () => {
                       d="M19 9l-7 7-7-7"
                     />
                   </svg>
-                </div>
+                </button>
+
+                <AnimatePresence>
+                  {showPayerPopup && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                      className="absolute right-0 top-full z-30 mt-2 w-52 overflow-hidden rounded-xl border border-indigo-500/30 bg-zinc-950/95 p-1.5 shadow-[0_12px_35px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+                      role="listbox"
+                    >
+                      {members.map((member) => (
+                        <button
+                          key={member._id}
+                          type="button"
+                          onClick={() => {
+                            setPaidBy(member._id);
+                            setShowPayerPopup(false);
+                          }}
+                          className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                            paidBy === member._id
+                              ? "bg-indigo-500/20 text-indigo-200"
+                              : "text-zinc-300 hover:bg-white/10 hover:text-white"
+                          }`}
+                          role="option"
+                          aria-selected={paidBy === member._id}
+                        >
+                          {member.username}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
           </div>

@@ -1,5 +1,4 @@
 import ExpenseCard from "./expenseCard"; // Make sure this path is correct based on your folder structure
-import axios from "axios";
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 
@@ -53,7 +52,7 @@ const RecentExpenses = (user) => {
           <button
             type="button"
             className="w-9 h-9 md:w-8 md:h-8 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center transition-all shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95"
-            title="Create New Trip"
+            title="Add personal expense"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -81,10 +80,10 @@ const RecentExpenses = (user) => {
             <ExpenseCard
               key={expense?.id || expense?._id || index}
               title={expense?.title}
+              description={expense?.description}
               category={expense?.category}
               subcategory={expense?.subcategory}
               time={expense?.createdAt}
-              description={""}
               amount={expense?.amount}
               // Updated to match theme
               iconColor={"bg-indigo-500"}

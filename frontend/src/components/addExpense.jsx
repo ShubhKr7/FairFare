@@ -5,7 +5,6 @@ import { toast } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 import api from "../utils/api";
-import { sortByName } from "../utils/sortByName";
 
 const handleScrollTop = () => {
   window.scrollTo({
@@ -70,7 +69,13 @@ const AddExpense = () => {
     try {
       const currentGroup = localStorage.getItem("currentGroup");
       const groupMembers = currentGroup ? JSON.parse(currentGroup).members : [];
-      setMembers(sortByName(groupMembers));
+      setMembers(
+        [...groupMembers].sort((a, b) =>
+          (a.username || "").localeCompare(b.username || "", undefined, {
+            sensitivity: "base",
+          })
+        )
+      );
     } catch (err) {
       console.error("Error loading user and friends from localStorage:", err);
     }

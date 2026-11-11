@@ -5,7 +5,6 @@ import FriendCard from "./FriendCard";
 import axios from "axios";
 import toast from "react-hot-toast";
 import api from "../utils/api";
-import { sortByName } from "../utils/sortByName";
 
 const FriendsSection = ({ user }) => {
   const [friends, setFriends] = useState([]);
@@ -25,7 +24,7 @@ const FriendsSection = ({ user }) => {
 
   useEffect(() => {
     if (user?.friends) {
-      setFriends(sortByName(user.friends)); // Initial load
+      setFriends(user.friends); // Initial load
     }
   }, [user]);
 
@@ -106,10 +105,8 @@ const FriendsSection = ({ user }) => {
     }
   };
 
-  const filteredFriends = sortByName(
-    friends.filter((f) =>
-      f.friend?.username?.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+  const filteredFriends = friends.filter((f) =>
+    f.friend?.username?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleUpdateFriendBalance = (email, newBalance) => {
@@ -128,7 +125,29 @@ const FriendsSection = ({ user }) => {
     }
   };
 
-  const sortedFriends = sortByName(filteredFriends);
+  // Split and sort
+  const sortedFriends = [
+    // 1. Friends with non-zero balance, sorted alphabetically by name
+    ...filteredFriends
+      .filter((f) => f.balance !== 0)
+      // 1. Friends with non-zero balance, sorted by descending balance
+      .sort((a, b) => b.balance - a.balance),
+    // 2. Friends with zero balance, sorted alphabetically by name
+    ...filteredFriends
+      .filter((f) => f.balance === 0)
+      .sort((a, b) => {
+        const nameA =
+          a.friend && a.friend?.username
+            ? a.friend?.username.toLowerCase()
+            : "";
+        const nameB =
+          b.friend && b.friend?.username
+            ? b.friend?.username.toLowerCase()
+            : "";
+
+        return nameA.localeCompare(nameB);
+      }),
+  ];
 
   return (
     <div className="flex flex-col bg-transparent">

@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import api from "../utils/api";
-import { sortByName } from "../utils/sortByName";
 
 const handleScrollTop = () => {
   window.scrollTo({
@@ -452,7 +451,7 @@ export default function Expenses() {
                               </span>
                             </div>
                             <div className="flex flex-wrap gap-2 pl-6">
-                              {sortByName(exp.owedBy).map((o, idx) => (
+                              {exp.owedBy.map((o, idx) => (
                                 <span
                                   key={idx}
                                   className="bg-zinc-950 border border-white/10 rounded px-2 py-1 text-xs text-zinc-300 font-mono"

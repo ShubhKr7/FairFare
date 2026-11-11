@@ -10,6 +10,7 @@ import {
     removeMembers,
     addafterDeleteExpenseController,
     deleteExpenseController,
+    updateGroupExpenseController,
     getExpenseController,
     getTopCategoriesForGroupExpense,
     getSubCategoriesForGroup,
@@ -44,6 +45,7 @@ router.post("/sub-categories", auth, getSubCategoriesForGroup);
 router.post("/expenses-by-subcategory", auth, getAllExpensesForASubcategoryInGroup);
 
 // PUT requests
+router.put("/expense/:expenseId", auth, updateGroupExpenseController);
 router.put("/update/:id", auth, updateGroupDetails);
 router.put("/archive/:id", auth, archiveGroup);
 router.put("/unarchive/:id", auth, unarchiveGroup);

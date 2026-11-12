@@ -368,6 +368,26 @@ const getGroupExpenses = async (req, res) => {
     const query = { group: groupId };
     if (cursor) query.createdAt = { $lt: cursor };
 
+    if (req.query.date) {
+      const date = typeof req.query.date === "string" ? req.query.date.trim() : "";
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ message: "Invalid date format" });
+      }
+
+      const startOfDay = new Date(`${date}T00:00:00.000Z`);
+      if (Number.isNaN(startOfDay.getTime())) {
+        return res.status(400).json({ message: "Invalid date format" });
+      }
+      const startOfNextDay = new Date(startOfDay);
+      startOfNextDay.setUTCDate(startOfNextDay.getUTCDate() + 1);
+      const timezoneOffset = Number.parseInt(req.query.timezoneOffset, 10);
+      if (Number.isInteger(timezoneOffset) && timezoneOffset >= -840 && timezoneOffset <= 840) {
+        startOfDay.setUTCMinutes(startOfDay.getUTCMinutes() + timezoneOffset);
+        startOfNextDay.setUTCMinutes(startOfNextDay.getUTCMinutes() + timezoneOffset);
+      }
+      query.date = { $gte: startOfDay, $lt: startOfNextDay };
+    }
+
     if (req.query.search && req.query.search.trim()) {
       const sanitized = req.query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const searchRegex = { $regex: sanitized, $options: "i" };
@@ -393,7 +413,7 @@ const getGroupExpenses = async (req, res) => {
     const expenses = await Expense.find(query)
       .sort({ createdAt: -1 })
       .limit(limit)
-      .select("title amount createdAt category subcategory paidBy owedBy")
+      .select("title amount date createdAt category subcategory paidBy owedBy")
       .populate("paidBy", "username")
       .populate("owedBy.user", "username")
       .lean();

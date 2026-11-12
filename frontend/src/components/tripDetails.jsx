@@ -45,6 +45,7 @@ const TripDetails = () => {
   const [loading, setLoading] = useState(true); // Loading state for the GET request
   const [expenses, setExpenses] = useState([]);
   const [selectedMembers, setSelectedMembers] = useState([]);
+  const [selectedDate, setSelectedDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const debounceTimer = useRef(null);
@@ -262,6 +263,11 @@ const TripDetails = () => {
           params.participants = selectedMembers.join(",");
         }
 
+        if (selectedDate) {
+          params.date = selectedDate;
+          params.timezoneOffset = new Date().getTimezoneOffset();
+        }
+
         const res = await api.get(`${API_BASE}/group/${tripId}/expenses`, {
           params,
         });
@@ -291,7 +297,7 @@ const TripDetails = () => {
         setLoadingExpenses(false);
       }
     },
-    [tripId, selectedMembers, debouncedSearch]
+    [tripId, selectedMembers, debouncedSearch, selectedDate]
   );
 
   // Initial fetch / reset on tripId, selectedMembers, or debouncedSearch change
@@ -865,6 +871,26 @@ const TripDetails = () => {
               </div>
             </div>
 
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="w-full sm:w-64">
+                <DatePicker
+                  value={selectedDate}
+                  onChange={setSelectedDate}
+                  placeholder="Filter by date"
+                  buttonClassName="bg-zinc-900/60 border"
+                />
+              </div>
+              {selectedDate && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate("")}
+                  className="self-start rounded-lg px-3 py-2 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white sm:self-auto"
+                >
+                  Clear date
+                </button>
+              )}
+            </div>
+
             {loadingExpenses && (
               <div className="flex justify-center py-12">
                 <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
@@ -943,7 +969,7 @@ const TripDetails = () => {
                     title={expense.title}
                     category={expense.category}
                     subcategory={expense.subcategory}
-                    time={expense.createdAt}
+                    time={expense.date || expense.createdAt}
                     description={""}
                     amount={expense.amount}
                     iconColor={"bg-indigo-500"} // Maintaining the theme

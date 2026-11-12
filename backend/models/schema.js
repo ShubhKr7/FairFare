@@ -258,6 +258,7 @@ notificationSchema.index({ recipient: 1, createdAt: -1 });
 notificationSchema.index({ recipient: 1, isRead: 1 });
 
 expenseSchema.index({ paidBy: 1, "owedBy.user": 1 });
+expenseSchema.index({ group: 1, date: 1, createdAt: -1 });
 
 const Expense = mongoose.model("Expense", expenseSchema);
 const User = mongoose.model("User", userSchema);

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Pencil, Check, X, ArrowUpRight, Image as ImageIcon, Camera, Loader2, CalendarDays, Trash2, Search } from "lucide-react";
+import { ArrowLeft, Pencil, Check, X, ArrowUpRight, Image as ImageIcon, Camera, Loader2, CalendarDays, Trash2, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import DatePicker from "./DatePicker";
 import ExpenseCard from "./expenseCard";
 import { motion } from "framer-motion";
@@ -57,7 +57,9 @@ const TripDetails = () => {
   const [loadingExpenses, setLoadingExpenses] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const loaderRef = useRef(null);
+  const memberCarouselRef = useRef(null);
   const isFetchingRef = useRef(false);
+  const expensesRequestRef = useRef(0);
   const cursorRef = useRef(null);
   const hasMoreRef = useRef(true);
 
@@ -242,9 +244,10 @@ const TripDetails = () => {
   // Fetching Group Expenses (debounced / locked to prevent duplicate race conditions)
   const loadExpenses = useCallback(
     async (reset = false) => {
-      if (isFetchingRef.current) return;
+      if (isFetchingRef.current && !reset) return;
       if (!reset && !hasMoreRef.current) return;
 
+      const requestId = ++expensesRequestRef.current;
       isFetchingRef.current = true;
       setLoadingExpenses(true);
 
@@ -272,6 +275,8 @@ const TripDetails = () => {
           params,
         });
 
+        if (requestId !== expensesRequestRef.current) return;
+
         const newExpenses = res.data.expenses || [];
         const nextCursor = res.data.nextCursor;
         const hasNext = Boolean(nextCursor);
@@ -291,10 +296,14 @@ const TripDetails = () => {
           return [...prev, ...filteredNew];
         });
       } catch (err) {
-        toast.error("Failed to load expenses");
+        if (requestId === expensesRequestRef.current) {
+          toast.error("Failed to load expenses");
+        }
       } finally {
-        isFetchingRef.current = false;
-        setLoadingExpenses(false);
+        if (requestId === expensesRequestRef.current) {
+          isFetchingRef.current = false;
+          setLoadingExpenses(false);
+        }
       }
     },
     [tripId, selectedMembers, debouncedSearch, selectedDate]
@@ -443,7 +452,15 @@ const TripDetails = () => {
     fetchMeta(true);
   };
 
+  const scrollMemberCarousel = (direction) => {
+    memberCarouselRef.current?.scrollBy({
+      left: direction * 180,
+      behavior: "smooth",
+    });
+  };
+
   const trimmedSearch = searchQuery.trim().toLowerCase();
+  const hasActiveFilters = Boolean(trimmedSearch || selectedDate || selectedMembers.length > 0);
   const filteredExpenses = expenses
     .filter((expense) => {
       if (!trimmedSearch) return true;
@@ -891,41 +908,63 @@ const TripDetails = () => {
               )}
             </div>
 
+            {/* Filter by Members */}
+            {members.length > 0 && (
+              <div className="relative mb-4">
+                <button
+                  type="button"
+                  onClick={() => scrollMemberCarousel(-1)}
+                  className="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/10 bg-zinc-900/95 p-1.5 text-zinc-400 shadow-lg transition-colors hover:text-white"
+                  aria-label="Scroll members left"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <div
+                  ref={memberCarouselRef}
+                  className="flex gap-2 overflow-x-auto px-8 py-1 custom-scrollbar scroll-smooth"
+                >
+                  {members.map((member) => {
+                    const isSelected = selectedMembers.includes(member._id);
+                    return (
+                      <button
+                        key={member._id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedMembers((prev) =>
+                            prev.includes(member._id)
+                              ? prev.filter((id) => id !== member._id)
+                              : [...prev, member._id]
+                          );
+                        }}
+                        className={`flex-shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${isSelected
+                          ? "border-indigo-500 bg-indigo-600 text-white shadow-lg shadow-indigo-900/20"
+                          : "border-white/10 bg-zinc-800/50 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+                          }`}
+                      >
+                        {member.username}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => scrollMemberCarousel(1)}
+                  className="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/10 bg-zinc-900/95 p-1.5 text-zinc-400 shadow-lg transition-colors hover:text-white"
+                  aria-label="Scroll members right"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+
             {loadingExpenses && (
               <div className="flex justify-center py-12">
                 <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
               </div>
             )}
 
-            {/* Filter by Members */}
-            {members.length > 0 && (
-              <div className="flex overflow-x-auto gap-2 pb-4 mb-2 custom-scrollbar">
-                {members.map((member) => {
-                  const isSelected = selectedMembers.includes(member._id);
-                  return (
-                    <button
-                      key={member._id}
-                      onClick={() => {
-                        setSelectedMembers((prev) =>
-                          prev.includes(member._id)
-                            ? prev.filter((id) => id !== member._id)
-                            : [...prev, member._id]
-                        );
-                      }}
-                      className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${isSelected
-                        ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-900/20"
-                        : "bg-zinc-800/50 border-white/10 text-zinc-400 hover:text-white hover:bg-zinc-800"
-                        }`}
-                    >
-                      {member.username}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
             <div className="space-y-4 min-h-[300px]">
-              {expenses.length === 0 && !debouncedSearch && !searchQuery.trim() ? (
+              {expenses.length === 0 && !hasActiveFilters ? (
                 <div className="h-64 flex flex-col items-center justify-center border-2 border-dashed border-zinc-800 rounded-3xl bg-zinc-900/20 text-center p-8">
                   <div className="w-16 h-16 bg-zinc-800/50 rounded-full flex items-center justify-center mb-4 text-zinc-600">
                     <svg
@@ -952,13 +991,19 @@ const TripDetails = () => {
                   <Search className="w-8 h-8 text-zinc-600 mb-2" />
                   <h3 className="text-base font-semibold text-zinc-300">No matching expenses</h3>
                   <p className="text-xs text-zinc-500 mt-1 max-w-xs">
-                    No expenses match &quot;{searchQuery.trim()}&quot;. Try a different keyword.
+                    {selectedDate || selectedMembers.length > 0
+                      ? "No expenses match the selected filters."
+                      : `No expenses match "${searchQuery.trim()}". Try a different keyword.`}
                   </p>
                   <button
-                    onClick={() => setSearchQuery("")}
+                    onClick={() => {
+                      setSearchQuery("");
+                      setSelectedDate("");
+                      setSelectedMembers([]);
+                    }}
                     className="mt-3 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-zinc-300 border border-white/5 transition-colors"
                   >
-                    Clear Search
+                    Clear Filters
                   </button>
                 </div>
               ) : (

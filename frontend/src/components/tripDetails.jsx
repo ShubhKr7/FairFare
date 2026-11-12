@@ -480,8 +480,8 @@ const TripDetails = () => {
 
   const tripStartDate = formatDateForPicker(tripDetails?.from);
   const tripEndDate = formatDateForPicker(tripDetails?.to);
-  const tripStartYear = tripStartDate ? Number(tripStartDate.slice(0, 4)) : new Date().getFullYear() - 10;
-  const tripEndYear = tripEndDate ? Number(tripEndDate.slice(0, 4)) : new Date().getFullYear() + 10;
+  const tripStartYear = tripStartDate ? Number(tripStartDate.slice(0, 4)) : new Date().getFullYear() - 50;
+  const tripEndYear = tripEndDate ? Number(tripEndDate.slice(0, 4)) : new Date().getFullYear() ;
   const monthPickerYears = Array.from(
     { length: tripEndYear - tripStartYear + 1 },
     (_, index) => tripStartYear + index

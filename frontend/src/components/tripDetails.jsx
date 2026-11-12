@@ -45,7 +45,8 @@ const TripDetails = () => {
   const [loading, setLoading] = useState(true); // Loading state for the GET request
   const [expenses, setExpenses] = useState([]);
   const [selectedMembers, setSelectedMembers] = useState([]);
-  const [selectedDate, setSelectedDate] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const debounceTimer = useRef(null);
@@ -266,8 +267,13 @@ const TripDetails = () => {
           params.participants = selectedMembers.join(",");
         }
 
-        if (selectedDate) {
-          params.date = selectedDate;
+        if (startDate) {
+          params.startDate = startDate;
+        }
+        if (endDate) {
+          params.endDate = endDate;
+        }
+        if (startDate || endDate) {
           params.timezoneOffset = new Date().getTimezoneOffset();
         }
 
@@ -306,7 +312,7 @@ const TripDetails = () => {
         }
       }
     },
-    [tripId, selectedMembers, debouncedSearch, selectedDate]
+    [tripId, selectedMembers, debouncedSearch, startDate, endDate]
   );
 
   // Initial fetch / reset on tripId, selectedMembers, or debouncedSearch change
@@ -460,7 +466,9 @@ const TripDetails = () => {
   };
 
   const trimmedSearch = searchQuery.trim().toLowerCase();
-  const hasActiveFilters = Boolean(trimmedSearch || selectedDate || selectedMembers.length > 0);
+  const hasActiveFilters = Boolean(
+    trimmedSearch || startDate || endDate || selectedMembers.length > 0
+  );
   const filteredExpenses = expenses
     .filter((expense) => {
       if (!trimmedSearch) return true;
@@ -888,22 +896,42 @@ const TripDetails = () => {
               </div>
             </div>
 
-            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-              <div className="w-full sm:w-64">
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="w-full sm:w-56">
                 <DatePicker
-                  value={selectedDate}
-                  onChange={setSelectedDate}
-                  placeholder="Filter by date"
+                  value={startDate}
+                  onChange={(value) => {
+                    setStartDate(value);
+                    if (endDate && value && endDate < value) setEndDate("");
+                  }}
+                  min={formatDateForPicker(tripDetails?.from)}
+                  max={formatDateForPicker(tripDetails?.to)}
+                  label="From"
+                  placeholder="Start date"
                   buttonClassName="bg-zinc-900/60 border"
                 />
               </div>
-              {selectedDate && (
+              <div className="w-full sm:w-56">
+                <DatePicker
+                  value={endDate}
+                  onChange={setEndDate}
+                  min={startDate || formatDateForPicker(tripDetails?.from)}
+                  max={formatDateForPicker(tripDetails?.to)}
+                  label="To"
+                  placeholder="End date"
+                  buttonClassName="bg-zinc-900/60 border"
+                />
+              </div>
+              {(startDate || endDate) && (
                 <button
                   type="button"
-                  onClick={() => setSelectedDate("")}
+                  onClick={() => {
+                    setStartDate("");
+                    setEndDate("");
+                  }}
                   className="self-start rounded-lg px-3 py-2 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white sm:self-auto"
                 >
-                  Clear date
+                  Clear dates
                 </button>
               )}
             </div>
@@ -991,14 +1019,15 @@ const TripDetails = () => {
                   <Search className="w-8 h-8 text-zinc-600 mb-2" />
                   <h3 className="text-base font-semibold text-zinc-300">No matching expenses</h3>
                   <p className="text-xs text-zinc-500 mt-1 max-w-xs">
-                    {selectedDate || selectedMembers.length > 0
+                    {startDate || endDate || selectedMembers.length > 0
                       ? "No expenses match the selected filters."
                       : `No expenses match "${searchQuery.trim()}". Try a different keyword.`}
                   </p>
                   <button
                     onClick={() => {
                       setSearchQuery("");
-                      setSelectedDate("");
+                      setStartDate("");
+                      setEndDate("");
                       setSelectedMembers([]);
                     }}
                     className="mt-3 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-zinc-300 border border-white/5 transition-colors"

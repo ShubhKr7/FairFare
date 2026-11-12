@@ -44,7 +44,7 @@ function parseDate(str) {
 
 const DROPDOWN_WIDTH = 260;
 
-const DatePicker = ({ value, onChange, min, label, placeholder = "Pick a date", labelClassName, buttonClassName }) => {
+const DatePicker = ({ value, onChange, min, max, label, placeholder = "Pick a date", labelClassName, buttonClassName }) => {
     const [open, setOpen] = useState(false);
     const triggerRef = useRef(null);
     const dropdownRef = useRef(null);
@@ -52,6 +52,7 @@ const DatePicker = ({ value, onChange, min, label, placeholder = "Pick a date", 
 
     const selected = parseDate(value);
     const minDate = parseDate(min);
+    const maxDate = parseDate(max);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -146,7 +147,7 @@ const DatePicker = ({ value, onChange, min, label, placeholder = "Pick a date", 
         if (!minDate) return false;
         const d = new Date(viewYear, viewMonth, day);
         d.setHours(0, 0, 0, 0);
-        return d < minDate;
+        return (minDate && d < minDate) || (maxDate && d > maxDate);
     };
 
     const isSelected = (day) => {
@@ -255,7 +256,7 @@ const DatePicker = ({ value, onChange, min, label, placeholder = "Pick a date", 
                                 setViewMonth(today.getMonth());
                                 setOpen(false);
                             }}
-                            disabled={minDate && today < minDate}
+                            disabled={(minDate && today < minDate) || (maxDate && today > maxDate)}
                             className="flex-1 py-1.5 rounded-lg text-xs font-semibold bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                         >
                             Today

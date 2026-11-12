@@ -366,26 +366,50 @@ const getGroupExpenses = async (req, res) => {
     const cursor = req.query.cursor ? new Date(req.query.cursor) : null;
 
     const query = { group: groupId };
+    const andConditions = [];
     if (cursor) query.createdAt = { $lt: cursor };
 
-    if (req.query.date) {
-      const date = typeof req.query.date === "string" ? req.query.date.trim() : "";
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        return res.status(400).json({ message: "Invalid date format" });
+    const startDate = typeof req.query.startDate === "string" ? req.query.startDate.trim() : "";
+    const endDate = typeof req.query.endDate === "string" ? req.query.endDate.trim() : "";
+    if (startDate || endDate) {
+      const isValidDate = (date) => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+        const parsed = new Date(`${date}T00:00:00.000Z`);
+        return !Number.isNaN(parsed.getTime()) &&
+          parsed.toISOString().slice(0, 10) === date;
+      };
+      if ((startDate && !isValidDate(startDate)) || (endDate && !isValidDate(endDate))) {
+        return res.status(400).json({ message: "Invalid date range" });
+      }
+      if (startDate && endDate && startDate > endDate) {
+        return res.status(400).json({ message: "Start date must be before end date" });
       }
 
-      const startOfDay = new Date(`${date}T00:00:00.000Z`);
-      if (Number.isNaN(startOfDay.getTime())) {
-        return res.status(400).json({ message: "Invalid date format" });
-      }
-      const startOfNextDay = new Date(startOfDay);
-      startOfNextDay.setUTCDate(startOfNextDay.getUTCDate() + 1);
+      const startOfDay = startDate
+        ? new Date(`${startDate}T00:00:00.000Z`)
+        : null;
+      const startOfNextDay = endDate
+        ? new Date(`${endDate}T00:00:00.000Z`)
+        : null;
+      if (startOfNextDay) startOfNextDay.setUTCDate(startOfNextDay.getUTCDate() + 1);
       const timezoneOffset = Number.parseInt(req.query.timezoneOffset, 10);
       if (Number.isInteger(timezoneOffset) && timezoneOffset >= -840 && timezoneOffset <= 840) {
-        startOfDay.setUTCMinutes(startOfDay.getUTCMinutes() + timezoneOffset);
-        startOfNextDay.setUTCMinutes(startOfNextDay.getUTCMinutes() + timezoneOffset);
+        if (startOfDay) startOfDay.setUTCMinutes(startOfDay.getUTCMinutes() + timezoneOffset);
+        if (startOfNextDay) startOfNextDay.setUTCMinutes(startOfNextDay.getUTCMinutes() + timezoneOffset);
       }
-      query.date = { $gte: startOfDay, $lt: startOfNextDay };
+      const dateRange = {};
+      if (startOfDay) dateRange.$gte = startOfDay;
+      if (startOfNextDay) dateRange.$lt = startOfNextDay;
+      const createdAtRange = {};
+      if (startOfDay) createdAtRange.$gte = startOfDay;
+      if (startOfNextDay) createdAtRange.$lt = startOfNextDay;
+
+      andConditions.push({
+        $or: [
+          { date: dateRange },
+          { date: { $exists: false }, createdAt: createdAtRange },
+        ],
+      });
     }
 
     if (req.query.search && req.query.search.trim()) {
@@ -401,14 +425,15 @@ const getGroupExpenses = async (req, res) => {
     if (req.query.participants) {
       const participantsArray = req.query.participants.split(',');
       if (participantsArray.length > 0) {
-        query.$and = participantsArray.map(pid => ({
+        andConditions.push(...participantsArray.map(pid => ({
           $or: [
             { paidBy: pid },
             { "owedBy.user": pid }
           ]
-        }));
+        })));
       }
     }
+    if (andConditions.length > 0) query.$and = andConditions;
 
     const expenses = await Expense.find(query)
       .sort({ createdAt: -1 })

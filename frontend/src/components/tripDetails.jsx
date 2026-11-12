@@ -47,6 +47,9 @@ const TripDetails = () => {
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("");
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+  const [monthPickerYear, setMonthPickerYear] = useState(new Date().getFullYear());
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const debounceTimer = useRef(null);
@@ -267,13 +270,23 @@ const TripDetails = () => {
           params.participants = selectedMembers.join(",");
         }
 
-        if (startDate) {
-          params.startDate = startDate;
+        const monthRange = selectedMonth
+          ? {
+            startDate: `${selectedMonth}-01`,
+            endDate: formatDateForPicker(new Date(
+              Number(selectedMonth.slice(0, 4)),
+              Number(selectedMonth.slice(5, 7)),
+              0
+            )),
+          }
+          : null;
+        if (monthRange?.startDate || startDate) {
+          params.startDate = monthRange?.startDate || startDate;
         }
-        if (endDate) {
-          params.endDate = endDate;
+        if (monthRange?.endDate || endDate) {
+          params.endDate = monthRange?.endDate || endDate;
         }
-        if (startDate || endDate) {
+        if (monthRange || startDate || endDate) {
           params.timezoneOffset = new Date().getTimezoneOffset();
         }
 
@@ -312,7 +325,7 @@ const TripDetails = () => {
         }
       }
     },
-    [tripId, selectedMembers, debouncedSearch, startDate, endDate]
+    [tripId, selectedMembers, debouncedSearch, startDate, endDate, selectedMonth]
   );
 
   // Initial fetch / reset on tripId, selectedMembers, or debouncedSearch change
@@ -465,9 +478,28 @@ const TripDetails = () => {
     });
   };
 
+  const tripStartDate = formatDateForPicker(tripDetails?.from);
+  const tripEndDate = formatDateForPicker(tripDetails?.to);
+  const tripStartYear = tripStartDate ? Number(tripStartDate.slice(0, 4)) : new Date().getFullYear() - 10;
+  const tripEndYear = tripEndDate ? Number(tripEndDate.slice(0, 4)) : new Date().getFullYear() + 10;
+  const monthPickerYears = Array.from(
+    { length: tripEndYear - tripStartYear + 1 },
+    (_, index) => tripStartYear + index
+  );
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ];
+
+  const isMonthAvailable = (year, monthIndex) => {
+    const month = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
+    return (!tripStartDate || month >= tripStartDate.slice(0, 7)) &&
+      (!tripEndDate || month <= tripEndDate.slice(0, 7));
+  };
+
   const trimmedSearch = searchQuery.trim().toLowerCase();
   const hasActiveFilters = Boolean(
-    trimmedSearch || startDate || endDate || selectedMembers.length > 0
+    trimmedSearch || startDate || endDate || selectedMonth || selectedMembers.length > 0
   );
   const filteredExpenses = expenses
     .filter((expense) => {
@@ -936,6 +968,85 @@ const TripDetails = () => {
               )}
             </div>
 
+            <div className="relative mb-4 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setMonthPickerYear(selectedMonth ? Number(selectedMonth.slice(0, 4)) : tripStartYear);
+                  setIsMonthPickerOpen((open) => !open);
+                }}
+                className="flex items-center gap-2 rounded-xl border border-white/10 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-100 transition-all hover:border-white/20"
+                aria-haspopup="dialog"
+                aria-expanded={isMonthPickerOpen}
+              >
+                <CalendarDays className="h-4 w-4 text-zinc-500" />
+                {selectedMonth
+                  ? new Date(`${selectedMonth}-01T00:00:00`).toLocaleDateString("en-US", {
+                    month: "long",
+                    year: "numeric",
+                  })
+                  : "Select month"}
+              </button>
+              {selectedMonth && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedMonth("");
+                    setIsMonthPickerOpen(false);
+                  }}
+                  className="rounded-lg px-3 py-2 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white"
+                >
+                  Clear month
+                </button>
+              )}
+              {isMonthPickerOpen && (
+                <div
+                  className="absolute left-0 top-full z-30 mt-2 w-72 rounded-2xl border border-white/10 bg-zinc-900 p-3 shadow-2xl shadow-black/40"
+                  role="dialog"
+                  aria-label="Select expense month"
+                >
+                  <select
+                    value={monthPickerYear}
+                    onChange={(event) => setMonthPickerYear(Number(event.target.value))}
+                    className="mb-3 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm font-semibold text-white outline-none"
+                    aria-label="Select year"
+                  >
+                    {monthPickerYears.map((year) => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                  <div className="grid grid-cols-3 gap-2">
+                    {monthNames.map((monthName, monthIndex) => {
+                      const month = `${monthPickerYear}-${String(monthIndex + 1).padStart(2, "0")}`;
+                      const available = isMonthAvailable(monthPickerYear, monthIndex);
+                      return (
+                        <button
+                          key={month}
+                          type="button"
+                          disabled={!available}
+                          onClick={() => {
+                            setSelectedMonth(month);
+                            setStartDate("");
+                            setEndDate("");
+                            setIsMonthPickerOpen(false);
+                          }}
+                          className={`rounded-lg px-2 py-2 text-xs font-medium transition-colors ${
+                            selectedMonth === month
+                              ? "bg-indigo-600 text-white"
+                              : available
+                                ? "bg-white/5 text-zinc-300 hover:bg-indigo-500/20 hover:text-white"
+                                : "cursor-not-allowed text-zinc-700"
+                          }`}
+                        >
+                          {monthName.slice(0, 3)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Filter by Members */}
             {members.length > 0 && (
               <div className="relative mb-4">
@@ -1019,7 +1130,7 @@ const TripDetails = () => {
                   <Search className="w-8 h-8 text-zinc-600 mb-2" />
                   <h3 className="text-base font-semibold text-zinc-300">No matching expenses</h3>
                   <p className="text-xs text-zinc-500 mt-1 max-w-xs">
-                    {startDate || endDate || selectedMembers.length > 0
+                    {startDate || endDate || selectedMonth || selectedMembers.length > 0
                       ? "No expenses match the selected filters."
                       : `No expenses match "${searchQuery.trim()}". Try a different keyword.`}
                   </p>
@@ -1028,6 +1139,7 @@ const TripDetails = () => {
                       setSearchQuery("");
                       setStartDate("");
                       setEndDate("");
+                      setSelectedMonth("");
                       setSelectedMembers([]);
                     }}
                     className="mt-3 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-zinc-300 border border-white/5 transition-colors"

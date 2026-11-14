@@ -50,9 +50,16 @@ const TripDetails = () => {
   const [selectedMonth, setSelectedMonth] = useState("");
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   const [monthPickerYear, setMonthPickerYear] = useState(new Date().getFullYear());
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [draftSearchQuery, setDraftSearchQuery] = useState("");
+  const [draftSelectedMembers, setDraftSelectedMembers] = useState([]);
+  const [draftStartDate, setDraftStartDate] = useState("");
+  const [draftEndDate, setDraftEndDate] = useState("");
+  const [draftSelectedMonth, setDraftSelectedMonth] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const debounceTimer = useRef(null);
+  const monthPickerContainerRef = useRef(null);
   const [showLeaveConfirmation, setShowLeaveConfirmation] = useState(false);
   const [showArchiveConfirmation, setShowArchiveConfirmation] = useState(false);
   const [showBannerDeleteConfirm, setShowBannerDeleteConfirm] = useState(false);
@@ -480,8 +487,15 @@ const TripDetails = () => {
 
   const tripStartDate = formatDateForPicker(tripDetails?.from);
   const tripEndDate = formatDateForPicker(tripDetails?.to);
-  const tripStartYear = tripStartDate ? Number(tripStartDate.slice(0, 4)) : new Date().getFullYear() - 50;
-  const tripEndYear = tripEndDate ? Number(tripEndDate.slice(0, 4)) : new Date().getFullYear() ;
+  const currentYear = new Date().getFullYear();
+  const tripStartYear = Math.max(
+    2024,
+    tripStartDate ? Number(tripStartDate.slice(0, 4)) : 2024
+  );
+  const tripEndYear = Math.min(
+    currentYear,
+    tripEndDate ? Number(tripEndDate.slice(0, 4)) : currentYear
+  );
   const monthPickerYears = Array.from(
     { length: tripEndYear - tripStartYear + 1 },
     (_, index) => tripStartYear + index
@@ -496,6 +510,54 @@ const TripDetails = () => {
     return (!tripStartDate || month >= tripStartDate.slice(0, 7)) &&
       (!tripEndDate || month <= tripEndDate.slice(0, 7));
   };
+
+  const openFilters = () => {
+    setDraftSearchQuery(searchQuery);
+    setDraftSelectedMembers(selectedMembers);
+    setDraftStartDate(startDate);
+    setDraftEndDate(endDate);
+    setDraftSelectedMonth(selectedMonth);
+    setIsMonthPickerOpen(false);
+    setIsFiltersOpen(true);
+  };
+
+  const clearAllFilters = () => {
+    setDraftSearchQuery("");
+    setDraftSelectedMembers([]);
+    setDraftStartDate("");
+    setDraftEndDate("");
+    setDraftSelectedMonth("");
+    setIsMonthPickerOpen(false);
+    setSearchQuery("");
+    setSelectedMembers([]);
+    setStartDate("");
+    setEndDate("");
+    setSelectedMonth("");
+    setIsFiltersOpen(false);
+  };
+
+  const applyFilters = () => {
+    setSearchQuery(draftSearchQuery);
+    setSelectedMembers(draftSelectedMembers);
+    setStartDate(draftStartDate);
+    setEndDate(draftEndDate);
+    setSelectedMonth(draftSelectedMonth);
+    setIsFiltersOpen(false);
+    setIsMonthPickerOpen(false);
+  };
+
+  useEffect(() => {
+    if (!isMonthPickerOpen) return;
+
+    const handleOutsideClick = (event) => {
+      if (!monthPickerContainerRef.current?.contains(event.target)) {
+        setIsMonthPickerOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [isMonthPickerOpen]);
 
   const trimmedSearch = searchQuery.trim().toLowerCase();
   const hasActiveFilters = Boolean(
@@ -900,201 +962,215 @@ const TripDetails = () => {
               </button>
             </div>
 
-            {/* Search Bar */}
-            <div className="relative mb-4 flex items-center">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search expenses by title..."
-                className="w-full bg-zinc-900/60 border border-white/10 rounded-xl pl-10 pr-16 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all shadow-inner"
-              />
-              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                {loadingExpenses && debouncedSearch && (
-                  <Loader2 className="w-3.5 h-3.5 text-indigo-400 animate-spin mr-1" />
-                )}
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery("")}
-                    className="p-1.5 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
-                    title="Clear search"
-                    aria-label="Clear search"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end">
-              <div className="w-full sm:w-56">
-                <DatePicker
-                  value={startDate}
-                  onChange={(value) => {
-                    setStartDate(value);
-                    if (endDate && value && endDate < value) setEndDate("");
-                  }}
-                  min={formatDateForPicker(tripDetails?.from)}
-                  max={formatDateForPicker(tripDetails?.to)}
-                  label="From"
-                  placeholder="Start date"
-                  buttonClassName="bg-zinc-900/60 border"
-                />
-              </div>
-              <div className="w-full sm:w-56">
-                <DatePicker
-                  value={endDate}
-                  onChange={setEndDate}
-                  min={startDate || formatDateForPicker(tripDetails?.from)}
-                  max={formatDateForPicker(tripDetails?.to)}
-                  label="To"
-                  placeholder="End date"
-                  buttonClassName="bg-zinc-900/60 border"
-                />
-              </div>
-              {(startDate || endDate) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStartDate("");
-                    setEndDate("");
-                  }}
-                  className="self-start rounded-lg px-3 py-2 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white sm:self-auto"
-                >
-                  Clear dates
-                </button>
-              )}
-            </div>
-
-            <div className="relative mb-4 flex items-center gap-2">
+            <div className="relative mb-4">
               <button
                 type="button"
-                onClick={() => {
-                  setMonthPickerYear(selectedMonth ? Number(selectedMonth.slice(0, 4)) : tripStartYear);
-                  setIsMonthPickerOpen((open) => !open);
-                }}
-                className="flex items-center gap-2 rounded-xl border border-white/10 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-100 transition-all hover:border-white/20"
+                onClick={openFilters}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-zinc-900/60 px-4 py-3 text-sm font-semibold text-zinc-200 transition-all hover:border-indigo-500/50 hover:bg-zinc-900"
                 aria-haspopup="dialog"
-                aria-expanded={isMonthPickerOpen}
+                aria-expanded={isFiltersOpen}
               >
-                <CalendarDays className="h-4 w-4 text-zinc-500" />
-                {selectedMonth
-                  ? new Date(`${selectedMonth}-01T00:00:00`).toLocaleDateString("en-US", {
-                    month: "long",
-                    year: "numeric",
-                  })
-                  : "Select month"}
+                <Search className="h-4 w-4 text-indigo-400" />
+                Apply Filters
+                {hasActiveFilters && (
+                  <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] text-white">
+                    Active
+                  </span>
+                )}
               </button>
-              {selectedMonth && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedMonth("");
-                    setIsMonthPickerOpen(false);
-                  }}
-                  className="rounded-lg px-3 py-2 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white"
-                >
-                  Clear month
-                </button>
-              )}
-              {isMonthPickerOpen && (
+
+              {isFiltersOpen && (
                 <div
-                  className="absolute left-0 top-full z-30 mt-2 w-72 rounded-2xl border border-white/10 bg-zinc-900 p-3 shadow-2xl shadow-black/40"
+                  className="absolute left-0 top-full z-30 mt-2 w-full rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-2xl shadow-black/40"
                   role="dialog"
-                  aria-label="Select expense month"
+                  aria-label="Expense filters"
                 >
-                  <select
-                    value={monthPickerYear}
-                    onChange={(event) => setMonthPickerYear(Number(event.target.value))}
-                    className="mb-3 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm font-semibold text-white outline-none"
-                    aria-label="Select year"
-                  >
-                    {monthPickerYears.map((year) => (
-                      <option key={year} value={year}>{year}</option>
-                    ))}
-                  </select>
-                  <div className="grid grid-cols-3 gap-2">
-                    {monthNames.map((monthName, monthIndex) => {
-                      const month = `${monthPickerYear}-${String(monthIndex + 1).padStart(2, "0")}`;
-                      const available = isMonthAvailable(monthPickerYear, monthIndex);
-                      return (
-                        <button
-                          key={month}
-                          type="button"
-                          disabled={!available}
-                          onClick={() => {
-                            setSelectedMonth(month);
-                            setStartDate("");
-                            setEndDate("");
-                            setIsMonthPickerOpen(false);
-                          }}
-                          className={`rounded-lg px-2 py-2 text-xs font-medium transition-colors ${
-                            selectedMonth === month
-                              ? "bg-indigo-600 text-white"
-                              : available
-                                ? "bg-white/5 text-zinc-300 hover:bg-indigo-500/20 hover:text-white"
-                                : "cursor-not-allowed text-zinc-700"
-                          }`}
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-white">Filter expenses</h3>
+                    <button
+                      type="button"
+                      onClick={() => setIsFiltersOpen(false)}
+                      className="rounded-full p-1 text-zinc-500 hover:bg-white/10 hover:text-white"
+                      aria-label="Close filters"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="relative mb-4 flex items-center">
+                    <Search className="absolute left-3.5 h-4 w-4 text-zinc-500" />
+                    <input
+                      type="text"
+                      value={draftSearchQuery}
+                      onChange={(event) => setDraftSearchQuery(event.target.value)}
+                      placeholder="Search by title, category..."
+                      className="w-full rounded-xl border border-white/10 bg-zinc-950/60 py-2.5 pl-10 pr-10 text-sm text-zinc-100 placeholder-zinc-500 focus:border-indigo-500/50 focus:outline-none"
+                    />
+                    {draftSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setDraftSearchQuery("")}
+                        className="absolute right-2.5 rounded-full p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+                        aria-label="Clear search"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <DatePicker
+                      value={draftStartDate}
+                      onChange={(value) => {
+                        setDraftStartDate(value);
+                        if (draftEndDate && value && draftEndDate < value) setDraftEndDate("");
+                        setDraftSelectedMonth("");
+                      }}
+                      min={tripStartDate}
+                      max={tripEndDate}
+                      label="From"
+                      placeholder="Start date"
+                      buttonClassName="bg-zinc-950/60 border"
+                    />
+                    <DatePicker
+                      value={draftEndDate}
+                      onChange={(value) => {
+                        setDraftEndDate(value);
+                        setDraftSelectedMonth("");
+                      }}
+                      min={draftStartDate || tripStartDate}
+                      max={tripEndDate}
+                      label="To"
+                      placeholder="End date"
+                      buttonClassName="bg-zinc-950/60 border"
+                    />
+                  </div>
+
+                  <div ref={monthPickerContainerRef} className="relative mt-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMonthPickerYear(
+                          draftSelectedMonth
+                            ? Number(draftSelectedMonth.slice(0, 4))
+                            : Math.min(Math.max(currentYear, tripStartYear), tripEndYear)
+                        );
+                        setIsMonthPickerOpen((open) => !open);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-xl border border-white/10 bg-zinc-950/60 px-3 py-2.5 text-sm text-zinc-200 hover:border-white/20"
+                      aria-haspopup="dialog"
+                      aria-expanded={isMonthPickerOpen}
+                    >
+                      <CalendarDays className="h-4 w-4 text-zinc-500" />
+                      {draftSelectedMonth
+                        ? new Date(`${draftSelectedMonth}-01T00:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+                        : "Select month"}
+                    </button>
+                    {isMonthPickerOpen && (
+                      <div className="absolute left-0 top-full z-40 mt-2 w-full rounded-2xl border border-white/10 bg-zinc-900 p-3 shadow-2xl shadow-black/40">
+                        <select
+                          value={monthPickerYear}
+                          onChange={(event) => setMonthPickerYear(Number(event.target.value))}
+                          className="mb-3 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm font-semibold text-white outline-none"
+                          aria-label="Select year"
                         >
-                          {monthName.slice(0, 3)}
-                        </button>
-                      );
-                    })}
+                          {monthPickerYears.map((year) => <option key={year} value={year}>{year}</option>)}
+                        </select>
+                        <div className="grid grid-cols-3 gap-2">
+                          {monthNames.map((monthName, monthIndex) => {
+                            const month = `${monthPickerYear}-${String(monthIndex + 1).padStart(2, "0")}`;
+                            const available = isMonthAvailable(monthPickerYear, monthIndex);
+                            return (
+                              <button
+                                key={month}
+                                type="button"
+                                disabled={!available}
+                                onClick={() => {
+                                  setDraftSelectedMonth(month);
+                                  setDraftStartDate("");
+                                  setDraftEndDate("");
+                                  setIsMonthPickerOpen(false);
+                                }}
+                                className={`rounded-lg px-2 py-2 text-xs font-medium ${
+                                  draftSelectedMonth === month
+                                    ? "bg-indigo-600 text-white"
+                                    : available
+                                      ? "bg-white/5 text-zinc-300 hover:bg-indigo-500/20 hover:text-white"
+                                      : "cursor-not-allowed text-zinc-700"
+                                }`}
+                              >
+                                {monthName.slice(0, 3)}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {members.length > 0 && (
+                    <div className="relative mt-3">
+                      <button
+                        type="button"
+                        onClick={() => scrollMemberCarousel(-1)}
+                        className="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/10 bg-zinc-900 p-1.5 text-zinc-400 shadow-lg hover:text-white"
+                        aria-label="Scroll members left"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <div ref={memberCarouselRef} className="flex gap-2 overflow-x-auto px-8 py-1 custom-scrollbar">
+                        {members.map((member) => {
+                          const isSelected = draftSelectedMembers.includes(member._id);
+                          return (
+                            <button
+                              key={member._id}
+                              type="button"
+                              onClick={() => setDraftSelectedMembers((prev) =>
+                                prev.includes(member._id)
+                                  ? prev.filter((id) => id !== member._id)
+                                  : [...prev, member._id]
+                              )}
+                              className={`flex-shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium ${
+                                isSelected
+                                  ? "border-indigo-500 bg-indigo-600 text-white"
+                                  : "border-white/10 bg-zinc-800/50 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+                              }`}
+                            >
+                              {member.username}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => scrollMemberCarousel(1)}
+                        className="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/10 bg-zinc-900 p-1.5 text-zinc-400 shadow-lg hover:text-white"
+                        aria-label="Scroll members right"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex justify-between gap-2 border-t border-white/10 pt-3">
+                    <button
+                      type="button"
+                      onClick={clearAllFilters}
+                      className="rounded-lg px-3 py-2 text-xs font-medium text-zinc-400 hover:bg-zinc-800 hover:text-white"
+                    >
+                      Clear all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={applyFilters}
+                      className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-500"
+                    >
+                      Apply Filters
+                    </button>
                   </div>
                 </div>
               )}
             </div>
-
-            {/* Filter by Members */}
-            {members.length > 0 && (
-              <div className="relative mb-4">
-                <button
-                  type="button"
-                  onClick={() => scrollMemberCarousel(-1)}
-                  className="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/10 bg-zinc-900/95 p-1.5 text-zinc-400 shadow-lg transition-colors hover:text-white"
-                  aria-label="Scroll members left"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <div
-                  ref={memberCarouselRef}
-                  className="flex gap-2 overflow-x-auto px-8 py-1 custom-scrollbar scroll-smooth"
-                >
-                  {members.map((member) => {
-                    const isSelected = selectedMembers.includes(member._id);
-                    return (
-                      <button
-                        key={member._id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedMembers((prev) =>
-                            prev.includes(member._id)
-                              ? prev.filter((id) => id !== member._id)
-                              : [...prev, member._id]
-                          );
-                        }}
-                        className={`flex-shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${isSelected
-                          ? "border-indigo-500 bg-indigo-600 text-white shadow-lg shadow-indigo-900/20"
-                          : "border-white/10 bg-zinc-800/50 text-zinc-400 hover:bg-zinc-800 hover:text-white"
-                          }`}
-                      >
-                        {member.username}
-                      </button>
-                    );
-                  })}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => scrollMemberCarousel(1)}
-                  className="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/10 bg-zinc-900/95 p-1.5 text-zinc-400 shadow-lg transition-colors hover:text-white"
-                  aria-label="Scroll members right"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            )}
 
             {loadingExpenses && (
               <div className="flex justify-center py-12">

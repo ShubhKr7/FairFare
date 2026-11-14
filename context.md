@@ -2,7 +2,7 @@
 
 A chronological record of the commits on the `main` branch, generated from the local Git history. Each entry includes the commit date, short hash, author, and a concise description taken from the commit message.
 
-**Scope:** 616 commits from 2024-08-25 through 2026-11-11.
+**Scope:** 625 commits from 2024-08-25 through 2026-11-14.
 
 ## 2024-08-25
 
@@ -1075,4 +1075,19 @@ A chronological record of the commits on the `main` branch, generated from the l
 - `d701563` - **Shubhankar Tiwari** - feat and fix: add searchbar in trip details page to filter expenses based on title using debouncing and fix the list rendering issue to avoid rendering single item multiple times - 2026-11-11
 - `0a7f814` - **Shubhankar Tiwari** - fix: frontend url instances - 2026-11-11
 - `8cb9cea` - **Shubhankar Tiwari** - feat: add profile photo in members list in trip details page - 2026-11-11
+
+## 2026-11-12
+
+- `7d1e21b` - **SHIKHAR SINGH** - created context.md file for the ai to refer each time it is given a task - 2026-11-12
+- `63a7128` - **SHIKHAR SINGH** - Added clearable calendar filter in tripDetails.jsx. - 2026-11-12
+- `6bda161` - **SHIKHAR SINGH** - added a compound MongoDB index in schema.js - 2026-11-12
+- `5a27fd3` - **SHIKHAR SINGH** - Implemented the member carousel in tripDetails.jsx. - 2026-11-12
+- `acd7f70` - **SHIKHAR SINGH** - Implemented the date-range improvements - 2026-11-12
+- `17a53fd` - **SHIKHAR SINGH** - Updated the month filter in tripDetails.jsx. - 2026-11-12
+- `285ef6b` - **Shubhankar Tiwari** - fix: show years beyond 10 years in month selection - 2026-11-12
+
+## 2026-11-14
+
+- `3a09884` - **SHIKHAR SINGH** - feat: add filter functionality for expenses in tripDetails.jsx - 2026-11-14
+- `5c6e801` - **SHIKHAR SINGH** - feat: add TripExpenseFilters component and backfill expense dates script - 2026-11-14
 

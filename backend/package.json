@@ -5,6 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "start": "nodemon index.js",
     "backfill-expense-dates": "node scripts/backfillExpenseDates.js"
   },
@@ -16,7 +17,6 @@
     "@google/generative-ai": "^0.24.1",
     "@sendgrid/mail": "^8.1.6",
     "axios": "^1.7.5",
-    "backend": "file:",
     "bcrypt": "^5.1.1",
     "cloudinary": "^2.7.0",
     "cors": "^2.8.5",
@@ -39,5 +39,9 @@
     "streamifier": "^0.1.1",
     "web-push": "^3.6.7",
     "zustand": "^5.0.7"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0",
+    "jest": "^30.5.2"
   }
 }

@@ -10,6 +10,7 @@ import { useParams } from "react-router-dom";
 import Cookies from "js-cookie";
 import toast from "react-hot-toast";
 import api from "../utils/api";
+import { formatDateForPicker } from "../utils/dateUtils";
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 const handleScrollTop = () => {
@@ -73,16 +74,6 @@ const TripDetails = () => {
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [bannerLightbox, setBannerLightbox] = useState(false);
   const fileInputRef = useRef(null);
-
-  const formatDateForPicker = (d) => {
-    if (!d) return "";
-    const date = new Date(d);
-    if (isNaN(date.getTime())) return "";
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    const dd = String(date.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-  };
 
   const formatDateDisplay = (d) => {
     if (!d) return null;

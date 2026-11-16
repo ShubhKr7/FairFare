@@ -1,19 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import PropTypes from "prop-types";
 import DatePicker from "./DatePicker";
-
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-const formatDateForPicker = (value) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-};
+import MonthPicker from "./MonthPicker";
+import { formatDateForPicker } from "../utils/dateUtils";
 
 const TripExpenseFilters = ({
   members,
@@ -28,9 +18,6 @@ const TripExpenseFilters = ({
   onClearAll,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
-  const [isYearPickerOpen, setIsYearPickerOpen] = useState(false);
-  const [monthPickerYear, setMonthPickerYear] = useState(new Date().getFullYear());
   const [draftSearchQuery, setDraftSearchQuery] = useState("");
   const [draftSelectedMembers, setDraftSelectedMembers] = useState([]);
   const [draftStartDate, setDraftStartDate] = useState("");
@@ -38,15 +25,8 @@ const TripExpenseFilters = ({
   const [draftSelectedMonth, setDraftSelectedMonth] = useState("");
   const filterButtonRef = useRef(null);
   const filterDialogRef = useRef(null);
-  const monthPickerContainerRef = useRef(null);
   const tripStartDate = formatDateForPicker(tripFrom);
   const tripEndDate = formatDateForPicker(tripTo);
-  const currentYear = new Date().getFullYear();
-  const tripStartYear = Math.max(2024, tripStartDate ? Number(tripStartDate.slice(0, 4)) : 2024);
-  const tripEndYear = Math.min(currentYear, tripEndDate ? Number(tripEndDate.slice(0, 4)) : currentYear);
-  const monthPickerYears = tripEndYear >= tripStartYear
-    ? Array.from({ length: tripEndYear - tripStartYear + 1 }, (_, index) => tripStartYear + index)
-    : [];
   const hasActiveFilters = Boolean(
     searchQuery.trim() || startDate || endDate || selectedMonth || selectedMembers.length > 0
   );
@@ -61,15 +41,11 @@ const TripExpenseFilters = ({
 
   const openFilters = () => {
     syncDraftValues();
-    setIsMonthPickerOpen(false);
-    setIsYearPickerOpen(false);
     setIsOpen(true);
   };
 
   const closeFilters = () => {
     setIsOpen(false);
-    setIsMonthPickerOpen(false);
-    setIsYearPickerOpen(false);
     filterButtonRef.current?.focus();
   };
 
@@ -79,7 +55,6 @@ const TripExpenseFilters = ({
     setDraftStartDate("");
     setDraftEndDate("");
     setDraftSelectedMonth("");
-    setIsYearPickerOpen(false);
     onClearAll();
     closeFilters();
   };
@@ -105,24 +80,6 @@ const TripExpenseFilters = ({
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isOpen]);
-
-  useEffect(() => {
-    if (!isMonthPickerOpen) return;
-    const handleOutsideClick = (event) => {
-      if (!monthPickerContainerRef.current?.contains(event.target)) {
-        setIsMonthPickerOpen(false);
-        setIsYearPickerOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [isMonthPickerOpen]);
-
-  const isMonthAvailable = (year, monthIndex) => {
-    const month = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
-    return (!tripStartDate || month >= tripStartDate.slice(0, 7)) &&
-      (!tripEndDate || month <= tripEndDate.slice(0, 7));
-  };
 
   return (
     <div className="relative mb-4">
@@ -201,86 +158,16 @@ const TripExpenseFilters = ({
             />
           </div>
 
-          <div ref={monthPickerContainerRef} className="relative mt-3">
-            <button
-              type="button"
-              onClick={() => {
-                const year = draftSelectedMonth
-                  ? Number(draftSelectedMonth.slice(0, 4))
-                  : Math.min(Math.max(currentYear, tripStartYear), tripEndYear);
-                setMonthPickerYear(year);
-                setIsMonthPickerOpen((open) => !open);
-                setIsYearPickerOpen(false);
-              }}
-              className="flex w-full items-center gap-2 rounded-xl border border-white/10 bg-zinc-950/60 px-3 py-2.5 text-sm text-zinc-200 hover:border-white/20"
-              aria-haspopup="dialog"
-              aria-expanded={isMonthPickerOpen}
-            >
-              <CalendarDays className="h-4 w-4 text-zinc-500" />
-              {draftSelectedMonth
-                ? new Date(`${draftSelectedMonth}-01T00:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" })
-                : "Select month"}
-            </button>
-            {isMonthPickerOpen && (
-              <div className="absolute left-0 top-full z-40 mt-2 w-full rounded-2xl border border-white/10 bg-zinc-900 p-3 shadow-2xl shadow-black/40">
-                <div className="relative mb-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsYearPickerOpen((open) => !open)}
-                    className="flex w-full items-center justify-between rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm font-semibold text-white transition-colors hover:border-indigo-500/50"
-                    aria-haspopup="dialog"
-                    aria-expanded={isYearPickerOpen}
-                  >
-                    {monthPickerYear}
-                    <ChevronDown className={`h-4 w-4 text-zinc-500 transition-transform ${isYearPickerOpen ? "rotate-180" : ""}`} />
-                  </button>
-                  {isYearPickerOpen && (
-                    <div className="absolute left-0 top-full z-50 mt-2 grid w-full grid-cols-3 gap-2 rounded-xl border border-white/10 bg-zinc-950 p-2 shadow-xl">
-                      {monthPickerYears.map((year) => (
-                        <button
-                          key={year}
-                          type="button"
-                          onClick={() => {
-                            setMonthPickerYear(year);
-                            setIsYearPickerOpen(false);
-                          }}
-                          className={`rounded-lg px-2 py-2 text-xs font-semibold transition-colors ${
-                            monthPickerYear === year
-                              ? "bg-indigo-600 text-white"
-                              : "text-zinc-400 hover:bg-indigo-500/20 hover:text-white"
-                          }`}
-                        >
-                          {year}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {MONTH_NAMES.map((monthName, monthIndex) => {
-                    const month = `${monthPickerYear}-${String(monthIndex + 1).padStart(2, "0")}`;
-                    const available = isMonthAvailable(monthPickerYear, monthIndex);
-                    return (
-                      <button
-                        key={month}
-                        type="button"
-                        disabled={!available}
-                        onClick={() => {
-                          setDraftSelectedMonth(month);
-                          setDraftStartDate("");
-                          setDraftEndDate("");
-                          setIsMonthPickerOpen(false);
-                        }}
-                        className={`rounded-lg px-2 py-2 text-xs font-medium ${draftSelectedMonth === month ? "bg-indigo-600 text-white" : available ? "bg-white/5 text-zinc-300 hover:bg-indigo-500/20 hover:text-white" : "cursor-not-allowed text-zinc-700"}`}
-                      >
-                        {monthName.slice(0, 3)}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+          <MonthPicker
+            value={draftSelectedMonth}
+            onChange={(value) => {
+              setDraftSelectedMonth(value);
+              setDraftStartDate("");
+              setDraftEndDate("");
+            }}
+            minDate={tripStartDate}
+            maxDate={tripEndDate}
+          />
 
           {members.length > 0 && (
             <MemberCarousel

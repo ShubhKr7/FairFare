@@ -2,12 +2,9 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
+import { MONTH_NAMES, formatDateForPicker } from "../utils/dateUtils";
 
 const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
-const MONTHS = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
-];
 
 function getDaysInMonth(year, month) {
     return new Date(year, month + 1, 0).getDate();
@@ -15,15 +12,6 @@ function getDaysInMonth(year, month) {
 
 function getFirstDayOfMonth(year, month) {
     return new Date(year, month, 1).getDay();
-}
-
-function formatDate(date) {
-    if (!date) return "";
-    const d = new Date(date);
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
 }
 
 function formatDisplay(date) {
@@ -138,7 +126,7 @@ const DatePicker = ({ value, onChange, min, max, label, placeholder = "Pick a da
     };
 
     const handleSelect = (day) => {
-        const dateStr = formatDate(new Date(viewYear, viewMonth, day));
+        const dateStr = formatDateForPicker(new Date(viewYear, viewMonth, day));
         onChange(dateStr);
         setOpen(false);
     };
@@ -194,7 +182,7 @@ const DatePicker = ({ value, onChange, min, max, label, placeholder = "Pick a da
                             <ChevronLeft className="w-4 h-4" />
                         </button>
                         <span className="text-sm font-semibold text-white tracking-wide">
-                            {MONTHS[viewMonth]} {viewYear}
+                            {MONTH_NAMES[viewMonth]} {viewYear}
                         </span>
                         <button
                             type="button"
@@ -251,7 +239,7 @@ const DatePicker = ({ value, onChange, min, max, label, placeholder = "Pick a da
                         <button
                             type="button"
                             onClick={() => {
-                                onChange(formatDate(today));
+                                onChange(formatDateForPicker(today));
                                 setViewYear(today.getFullYear());
                                 setViewMonth(today.getMonth());
                                 setOpen(false);

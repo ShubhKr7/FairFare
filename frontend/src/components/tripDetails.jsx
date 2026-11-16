@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Pencil, Check, X, ArrowUpRight, Image as ImageIcon, Camera, Loader2, Trash2, Search, CalendarDays } from "lucide-react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { ArrowLeft, Pencil, Check, X, ArrowUpRight, Image as ImageIcon, Camera, Loader2, CalendarDays, Trash2, Search, ChevronLeft, ChevronRight, Users} from "lucide-react";
 import DatePicker from "./DatePicker";
 import TripExpenseFilters from "./TripExpenseFilters";
 import ExpenseCard from "./expenseCard";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { FaChartBar } from "react-icons/fa";
 import { useParams } from "react-router-dom";
 import Cookies from "js-cookie";
@@ -40,6 +40,7 @@ const generateGradient = (str) => {
 
 const TripDetails = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const { tripId } = useParams(); // Now you get tripId directly from URL
   const [members, setMembers] = useState([]);
@@ -57,6 +58,8 @@ const TripDetails = () => {
   const [showArchiveConfirmation, setShowArchiveConfirmation] = useState(false);
   const [showBannerDeleteConfirm, setShowBannerDeleteConfirm] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [showCrewPopup, setShowCrewPopup] = useState(false);
+  const [cursor, setCursor] = useState(null);
   const [loadingExpenses, setLoadingExpenses] = useState(false);
   const loaderRef = useRef(null);
   const isFetchingRef = useRef(false);
@@ -74,12 +77,31 @@ const TripDetails = () => {
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [bannerLightbox, setBannerLightbox] = useState(false);
   const fileInputRef = useRef(null);
+  const filterRef = useRef(null);
 
   const formatDateDisplay = (d) => {
     if (!d) return null;
     const date = new Date(d);
     if (isNaN(date.getTime())) return null;
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
+
+  // Helper to resolve member photo URL
+  const getMemberPhotoUrl = (member) => {
+    const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+    const isCurrentUser = member._id === currentUser?._id;
+    return isCurrentUser
+      ? member?.profilePhotoUrl || currentUser?.profilePhotoUrl
+      : member?.profilePhotoUrl || currentUser?.friends?.find((f) => (f.friend?._id || f.friend) === member._id)?.friend?.profilePhotoUrl;
+  };
+
+  // Helper to get member display name and initials
+  const getMemberInfo = (member) => {
+    const username = typeof member === "string" ? member : member?.username || "";
+    return {
+      name: username,
+      initial: typeof member === "string" ? String(username).charAt(0) : member?.username?.charAt(0) || "?"
+    };
   };
 
   const startEditing = () => {
@@ -212,8 +234,50 @@ const TripDetails = () => {
   };
 
   useEffect(() => {
-    handleScrollTop();
+    const hasTarget = window.location.hash || location.state?.highlightExpenseId;
+    if (!hasTarget) {
+      handleScrollTop();
+    }
   }, []);
+
+  // Scroll to and highlight expense if navigated with hash or state
+  useEffect(() => {
+    const targetId =
+      location.state?.highlightExpenseId ||
+      window.location.hash.replace("#", "");
+    if (!targetId || expenses.length === 0) return;
+
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      const el =
+        document.getElementById(`expense-card-${targetId}`) ||
+        document.getElementById(`tx-card-${targetId}`) ||
+        document.getElementById(targetId);
+
+      if (el) {
+        clearInterval(interval);
+        requestAnimationFrame(() => {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+
+          // Visual highlight effect
+          el.style.transition = "all 0.4s ease";
+          el.style.boxShadow =
+            "0 0 0 2px #6366f1, 0 0 30px rgba(99, 102, 241, 0.45)";
+          el.style.borderColor = "#818cf8";
+
+          setTimeout(() => {
+            el.style.boxShadow = "";
+            el.style.borderColor = "";
+          }, 3500);
+        });
+      } else if (attempts >= 15) {
+        clearInterval(interval);
+      }
+    }, 150);
+
+    return () => clearInterval(interval);
+  }, [expenses, location.hash, location.state]);
 
   //Fetching group Meta Data
   useEffect(() => {
@@ -741,116 +805,34 @@ const TripDetails = () => {
             initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5, ease: "easeOut", delay: 0.3 }}
-            className="lg:col-span-4 space-y-4 sm:space-y-6"
+            className="lg:col-span-4 flex items-start gap-2"
           >
-            <div className="bg-zinc-900/30 border border-white/5 rounded-2xl p-4 sm:p-5 backdrop-blur-sm lg:sticky lg:top-6">
-              <div className="flex justify-between items-center mb-4 sm:mb-6">
-                <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                  The Crew
-                  <span className="text-[10px] sm:text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full border border-white/5">
-                    {members.length}
-                  </span>
-                </h2>
-              </div>
+            {/* The Crew Button */}
+            <button
+              onClick={() => setShowCrewPopup(true)}
+              className="group flex items-center justify-center gap-3 w-12 h-12 sm:w-auto sm:h-auto sm:px-6 sm:py-3.5 rounded-full sm:rounded-2xl bg-zinc-900/40 border border-white/5 hover:bg-white/10 hover:border-indigo-500/30 transition-all backdrop-blur-md shadow-xl hover:shadow-indigo-500/10 active:scale-95"
+              title="View Crew Members"
+            >
+              <Users className="w-5 h-5 text-indigo-400 group-hover:text-indigo-300 transition-colors" />
+              <span className="hidden sm:block text-sm font-bold text-zinc-300 group-hover:text-white uppercase tracking-wider">
+                The Crew
+              </span>
+              <span className="hidden sm:flex items-center justify-center text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full border border-white/5 ml-1">
+                {members.length}
+              </span>
+            </button>
 
-              {/* Members List - Compact on Mobile */}
-              <div className="space-y-2 sm:space-y-3 max-h-[180px] sm:max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
-                {members.length > 0 ? (
-                  members.map((member, index) => {
-                    const storedUser = localStorage.getItem("user");
-                    const currentUser = storedUser ? JSON.parse(storedUser) : null;
-                    const isCurrentUser = currentUser && member._id === currentUser._id;
-                    const photoUrl = isCurrentUser
-                      ? currentUser?.profilePhotoUrl || member?.profilePhotoUrl
-                      : member?.profilePhotoUrl || currentUser?.friends?.find((f) => (f.friend?._id || f.friend) === member._id)?.friend?.profilePhotoUrl;
-                    const memberName = typeof member === "string" ? member : member?.username || "";
-                    const memberInitial = typeof member === "string" ? member.charAt(0) : member?.username?.charAt(0) || "?";
-
-                    return (
-                      <div key={index}>
-                        {isCurrentUser ? (
-                          <Link to={`/personal-expenses`}>
-                            <div
-                              className="flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 rounded-xl hover:bg-white/5 transition-colors group cursor-pointer"
-                            >
-                              {photoUrl ? (
-                                <img
-                                  src={photoUrl}
-                                  alt={memberName}
-                                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border border-white/10 shadow-inner group-hover:border-indigo-500/50 transition-colors shrink-0"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = "none";
-                                    if (e.currentTarget.nextElementSibling) {
-                                      e.currentTarget.nextElementSibling.style.display = "flex";
-                                    }
-                                  }}
-                                />
-                              ) : null}
-                              <div
-                                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center text-indigo-400 font-bold text-xs sm:text-sm shadow-inner group-hover:border-indigo-500/50 transition-colors shrink-0 ${photoUrl ? "hidden" : ""}`}
-                              >
-                                {memberInitial}
-                              </div>
-                              <span className="text-xs sm:text-sm text-zinc-300 font-medium truncate flex-1">
-                                {memberName}
-                              </span>
-                              <ArrowUpRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-indigo-400 transition-colors shrink-0" />
-                            </div>
-                          </Link>
-                        ) : (
-                          <Link to={`/transaction-history/${member._id}`}>
-                            <div className="flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 rounded-xl hover:bg-white/5 transition-colors group">
-                              {photoUrl ? (
-                                <img
-                                  src={photoUrl}
-                                  alt={memberName}
-                                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border border-white/10 shadow-inner group-hover:border-indigo-500/50 transition-colors shrink-0"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = "none";
-                                    if (e.currentTarget.nextElementSibling) {
-                                      e.currentTarget.nextElementSibling.style.display = "flex";
-                                    }
-                                  }}
-                                />
-                              ) : null}
-                              <div
-                                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center text-indigo-400 font-bold text-xs sm:text-sm shadow-inner group-hover:border-indigo-500/50 transition-colors shrink-0 ${photoUrl ? "hidden" : ""}`}
-                              >
-                                {memberInitial}
-                              </div>
-                              <span className="text-xs sm:text-sm text-zinc-300 font-medium truncate flex-1">
-                                {memberName}
-                              </span>
-                              <ArrowUpRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-indigo-400 transition-colors shrink-0" />
-                            </div>
-                          </Link>
-                        )}
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="text-zinc-500 italic text-xs sm:text-sm">
-                    Flying solo?
-                  </p>
-                )}
-              </div>
-
-              {/* Member Actions */}
-              <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-white/5">
-                <button
-                  onClick={handleAddMember}
-                  className="flex items-center justify-center gap-2 py-1.5 sm:py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[10px] sm:text-xs font-bold uppercase transition-colors"
-                >
-                  + Add
-                </button>
-                <button
-                  onClick={handleRemoveMember}
-                  className="flex items-center justify-center gap-2 py-1.5 sm:py-2 rounded-lg border border-zinc-700 hover:bg-zinc-800 text-zinc-400 text-[10px] sm:text-xs font-bold uppercase transition-colors"
-                >
-                  - Remove
-                </button>
-              </div>
-            </div>
+            {/* Filter Button */}
+            <button
+              onClick={() => filterRef.current?.open()}
+              className="group flex items-center justify-center gap-3 w-12 h-12 sm:w-auto sm:h-auto sm:px-6 sm:py-3.5 rounded-full sm:rounded-2xl bg-zinc-900/40 border border-white/5 hover:bg-white/10 hover:border-indigo-500/30 transition-all backdrop-blur-md shadow-xl hover:shadow-indigo-500/10 active:scale-95"
+              title="Filter Expenses"
+            >
+              <Search className="w-5 h-5 text-indigo-400 group-hover:text-indigo-300 transition-colors" />
+              <span className="hidden sm:block text-sm font-bold text-zinc-300 group-hover:text-white uppercase tracking-wider">
+                Filter
+              </span>
+            </button>
           </motion.div>
 
           {/* --- RIGHT COLUMN: The Log (Expenses) --- */}
@@ -874,6 +856,7 @@ const TripDetails = () => {
             </div>
 
             <TripExpenseFilters
+              ref={filterRef}
               members={members}
               selectedMembers={selectedMembers}
               startDate={startDate}
@@ -1104,6 +1087,125 @@ const TripDetails = () => {
           />
         </div>
       )}
+
+      {/* --- THE CREW POPUP --- */}
+      <AnimatePresence>
+        {showCrewPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-4"
+            onClick={() => setShowCrewPopup(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="bg-zinc-900 border border-white/10 rounded-3xl max-w-md w-full shadow-2xl relative overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+            {/* Close Button */}
+            <button
+              onClick={() => setShowCrewPopup(false)}
+              className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/10 text-zinc-500 hover:text-white transition-all z-10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="p-6 sm:p-8">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  The Crew
+                  <span className="text-xs bg-zinc-800 text-zinc-400 px-2.5 py-1 rounded-full border border-white/5">
+                    {members.length}
+                  </span>
+                </h2>
+              </div>
+
+              {/* Members List */}
+              <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                {members.length > 0 ? (
+                  members.map((member, index) => {
+                    const storedUser = localStorage.getItem("user");
+                    const currentUser = storedUser ? JSON.parse(storedUser) : null;
+                    const isCurrentUser = currentUser && member._id === currentUser._id;
+                    const photoUrl = isCurrentUser
+                      ? currentUser?.profilePhotoUrl || member?.profilePhotoUrl
+                      : member?.profilePhotoUrl || currentUser?.friends?.find((f) => (f.friend?._id || f.friend) === member._id)?.friend?.profilePhotoUrl;
+                    const memberName = typeof member === "string" ? member : member?.username || "";
+                    const memberInitial = typeof member === "string" ? member.charAt(0) : member?.username?.charAt(0) || "?";
+
+                    return (
+                      <div key={index}>
+                        <Link
+                          to={isCurrentUser ? `/personal-expenses` : `/transaction-history/${member._id}`}
+                          onClick={() => setShowCrewPopup(false)}
+                        >
+                          <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors group cursor-pointer">
+                            {photoUrl ? (
+                              <img
+                                src={photoUrl}
+                                alt={memberName}
+                                className="w-10 h-10 rounded-full object-cover border border-white/10 shadow-inner group-hover:border-indigo-500/50 transition-colors shrink-0"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = "none";
+                                  if (e.currentTarget.nextElementSibling) {
+                                    e.currentTarget.nextElementSibling.style.display = "flex";
+                                  }
+                                }}
+                              />
+                            ) : null}
+                            <div
+                              className={`w-10 h-10 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center text-indigo-400 font-bold text-sm shadow-inner group-hover:border-indigo-500/50 transition-colors shrink-0 ${photoUrl ? "hidden" : ""}`}
+                            >
+                              {memberInitial}
+                            </div>
+                            <span className="text-sm text-zinc-300 font-medium truncate flex-1">
+                              {memberName}
+                              {isCurrentUser && <span className="ml-2 text-[10px] text-indigo-400 font-bold uppercase">(You)</span>}
+                            </span>
+                            <ArrowUpRight className="w-4 h-4 text-zinc-500 group-hover:text-indigo-400 transition-colors shrink-0" />
+                          </div>
+                        </Link>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-zinc-500 italic text-sm py-4">
+                    Flying solo?
+                  </p>
+                )}
+              </div>
+
+              {/* Member Actions */}
+              <div className="grid grid-cols-2 gap-4 mt-8 pt-6 border-t border-white/5">
+                <button
+                  onClick={() => {
+                    setShowCrewPopup(false);
+                    handleAddMember();
+                  }}
+                  className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold uppercase transition-all active:scale-95"
+                >
+                  + Add Member
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCrewPopup(false);
+                    handleRemoveMember();
+                  }}
+                  className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-zinc-700 hover:bg-zinc-800 text-zinc-400 text-xs font-bold uppercase transition-all active:scale-95"
+                >
+                  - Remove
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
     </div>
   );
 };

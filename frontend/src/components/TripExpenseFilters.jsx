@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import PropTypes from "prop-types";
 import DatePicker from "./DatePicker";
 import MonthPicker from "./MonthPicker";
 import { formatDateForPicker } from "../utils/dateUtils";
+import { motion, AnimatePresence } from "framer-motion";
 
-const TripExpenseFilters = ({
+const TripExpenseFilters = forwardRef(({
   members,
   selectedMembers,
   startDate,
@@ -16,14 +17,17 @@ const TripExpenseFilters = ({
   tripTo,
   onApply,
   onClearAll,
-}) => {
+}, ref) => {
+  useImperativeHandle(ref, () => ({
+    open: openFilters,
+    close: closeFilters,
+  }));
   const [isOpen, setIsOpen] = useState(false);
   const [draftSearchQuery, setDraftSearchQuery] = useState("");
   const [draftSelectedMembers, setDraftSelectedMembers] = useState([]);
   const [draftStartDate, setDraftStartDate] = useState("");
   const [draftEndDate, setDraftEndDate] = useState("");
   const [draftSelectedMonth, setDraftSelectedMonth] = useState("");
-  const filterButtonRef = useRef(null);
   const filterDialogRef = useRef(null);
   const tripStartDate = formatDateForPicker(tripFrom);
   const tripEndDate = formatDateForPicker(tripTo);
@@ -82,30 +86,29 @@ const TripExpenseFilters = ({
   }, [isOpen]);
 
   return (
-    <div className="relative mb-4">
-      <button
-        ref={filterButtonRef}
-        type="button"
-        onClick={() => (isOpen ? closeFilters() : openFilters())}
-        className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-zinc-900/60 px-4 py-3 text-sm font-semibold text-zinc-200 transition-all hover:border-indigo-500/50 hover:bg-zinc-900"
-        aria-haspopup="dialog"
-        aria-expanded={isOpen}
-      >
-        <Search className="h-4 w-4 text-indigo-400" />
-        Apply Filters
-        {hasActiveFilters && (
-          <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] text-white">Active</span>
-        )}
-      </button>
-
-      {isOpen && (
-        <div
-          ref={filterDialogRef}
-          className="absolute left-0 top-full z-30 mt-2 w-full rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-2xl shadow-black/40"
-          role="dialog"
-          aria-label="Expense filters"
-          tabIndex={-1}
-        >
+    <div className="relative">
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={closeFilters}
+          >
+            <motion.div
+              ref={filterDialogRef}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-lg mx-4 rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-2xl shadow-black/60"
+              role="dialog"
+              aria-label="Expense filters"
+              tabIndex={-1}
+              onClick={(event) => event.stopPropagation()}
+            >
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-sm font-bold text-white">Filter expenses</h3>
             <button type="button" onClick={closeFilters} className="rounded-full p-1 text-zinc-500 hover:bg-white/10 hover:text-white" aria-label="Close filters">
@@ -181,11 +184,13 @@ const TripExpenseFilters = ({
             <button type="button" onClick={clearAllFilters} className="rounded-lg px-3 py-2 text-xs font-medium text-zinc-400 hover:bg-zinc-800 hover:text-white">Clear all</button>
             <button type="button" onClick={applyFilters} className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-500">Apply Filters</button>
           </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+    </AnimatePresence>
     </div>
   );
-};
+});
 
 const MemberCarousel = ({ members, selectedMembers, onChange }) => {
   const carouselRef = useRef(null);

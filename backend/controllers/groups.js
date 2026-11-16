@@ -345,7 +345,7 @@ const getGroupDetails = async (req, res) => {
 
     const group = await Group.findById(groupId)
       .select("name description members hiddenBy createdAt updatedAt bannerUrl from to")
-      .populate("members", "username")
+      .populate("members", "username profilePhotoUrl")
       .lean();
 
     if (!group) {
@@ -889,80 +889,82 @@ const addafterDeleteExpenseController = async (req, res) => {
       savedExpense = newExpense;
     });
 
-    // Send notifications AFTER commit
-    if (savedExpense) {
-      try {
-        let notifyUsers = [];
-        if (groupId) {
-          const group = await Group.findById(groupId).populate(
-            "members",
-            "fcmToken username"
-          );
-          notifyUsers = group.members;
-        } else {
-          notifyUsers = await User.find(
-            { _id: { $in: involvedMembers } },
-            "fcmToken username"
-          );
-        }
+    res.status(200).json({ success: true, expense: savedExpense });
 
-        const tokens = notifyUsers.map((u) => u.fcmToken).filter(Boolean);
-        if (tokens.length > 0) {
-          const notificationBody = `Expense "${title}" has been updated for ₹${amount}.`;
-          await sendMultipleNotifications(tokens, title, notificationBody);
-        }
+    setImmediate(async () => {
+      // Send notifications AFTER commit
+      if (savedExpense) {
+        try {
+          let notifyUsers = [];
+          if (groupId) {
+            const group = await Group.findById(groupId).populate(
+              "members",
+              "fcmToken username"
+            );
+            notifyUsers = group?.members || [];
+          } else {
+            notifyUsers = await User.find(
+              { _id: { $in: involvedMembers } },
+              "fcmToken username"
+            );
+          }
 
-        // Create Activity notifications for each user owing money
-        const payerUser = await User.findById(paidBy).select("username");
-        const payerUsername = payerUser?.username || "Someone";
-        const groupName = groupId ? (await Group.findById(groupId).select("name"))?.name : null;
-        const isEdit = req.body.action === "edit";
+          const tokens = notifyUsers.map((u) => u.fcmToken).filter(Boolean);
+          if (tokens.length > 0) {
+            const notificationBody = `Expense "${title}" has been updated for ₹${amount}.`;
+            sendMultipleNotifications(tokens, title, notificationBody).catch(err =>
+              console.error("Async FCM push notification error:", err)
+            );
+          }
 
-        for (const owed of savedExpense.owedBy) {
-          if (owed.user.toString() === paidBy.toString()) continue;
-          
-          const message = isEdit
-            ? groupName
-              ? `${payerUsername} edited the expense "${savedExpense.title}" in ${groupName}`
-              : `${payerUsername} edited the expense "${savedExpense.title}"`
-            : groupName
-              ? `${payerUsername} added you to "${savedExpense.title}" in ${groupName}`
-              : `${payerUsername} added you to "${savedExpense.title}"`;
-          const notifType = isEdit
-            ? "expense_edited"
-            : groupName
-              ? "group_expense_added"
-              : "expense_added";
-          try {
-            await Notification.create({
+          // Create Activity notifications using bulk insertMany
+          const payerUser = await User.findById(paidBy).select("username");
+          const payerUsername = payerUser?.username || "Someone";
+          const groupName = groupId ? (await Group.findById(groupId).select("name"))?.name : null;
+          const isEdit = action === "edit";
+
+          const activityLogs = savedExpense.owedBy
+            .filter(owed => owed.user.toString() !== paidBy.toString())
+            .map(owed => ({
               recipient: owed.user,
               sender: paidBy,
-              type: notifType,
-              message,
+              type: isEdit
+                ? "expense_edited"
+                : groupName
+                  ? "group_expense_added"
+                  : "expense_added",
+              message: isEdit
+                ? groupName
+                  ? `${payerUsername} edited the expense "${savedExpense.title}" in ${groupName}`
+                  : `${payerUsername} edited the expense "${savedExpense.title}"`
+                : groupName
+                  ? `${payerUsername} added you to "${savedExpense.title}" in ${groupName}`
+                  : `${payerUsername} added you to "${savedExpense.title}"`,
               referenceId: savedExpense._id,
-            });
-          } catch (notifError) {
-            console.error("Error creating activity notification:", notifError);
+            }));
+
+          if (activityLogs.length > 0) {
+            await Notification.insertMany(activityLogs);
           }
+        } catch (notifyErr) {
+          console.error("Error in addafterDeleteExpenseController notifications:", notifyErr);
         }
-      } catch (notifyErr) {
-        console.error("Error in addafterDeleteExpenseController notifications:", notifyErr);
       }
-    }
 
-    /* ================= SNAPSHOT: EXPENSE CREATE ================= */
-    if (savedExpense) {
-      try {
-        await applyExpenseCreate(savedExpense);
-        savedExpense.owedBy.forEach(owed => invalidateAICache(owed.user));
-        invalidateAICache(savedExpense.paidBy);
-      } catch (snapshotErr) {
-        console.error("Snapshot expense apply failed:", snapshotErr);
+      /* ================= SNAPSHOT: EXPENSE CREATE ================= */
+      if (savedExpense) {
+        try {
+          await applyExpenseCreate(savedExpense);
+          savedExpense.owedBy.forEach(owed => invalidateAICache(owed.user));
+          invalidateAICache(savedExpense.paidBy);
+        } catch (snapshotErr) {
+          console.error("Snapshot expense apply failed:", snapshotErr);
+        }
       }
-    }
-    /* ============================================================ */
+      /* ============================================================ */
+    });
 
-    return res.status(200).json({ success: true, expense: savedExpense });
+    return;
   } catch (error) {
     console.error("Error in addafterDeleteExpenseController:", error);
     return res.status(500).json({ success: false, message: error.message });
@@ -1041,54 +1043,58 @@ const deleteExpenseController = async (req, res) => {
       return res.status(404).json({ success: false, message: "Expense not found" });
     }
 
-    // 6) 🔔 Notify group members AFTER commit and create activity entries
-    if (deletedExpense.group) {
-      const group = await Group.findById(deletedExpense.group).populate(
-        "members",
-        "fcmToken username"
-      );
-      if (group && group.members.length > 0) {
-        const tokens = group.members.map((m) => m.fcmToken).filter(Boolean);
-        if (tokens.length > 0) {
-          const title = action === "edit" ? "Expense Edited" : "Expense Deleted";
-          const body = action === "edit"
-            ? `An expense "${deletedExpense.title}" of amount ₹${deletedExpense.amount} has been edited in group "${group.name}".`
-            : `An expense "${deletedExpense.title}" of amount ₹${deletedExpense.amount} has been deleted from group "${group.name}".`;
-          await sendMultipleNotifications(tokens, title, body);
-        }
+    res.status(200).json({ success: true, message: "Expense deleted" });
 
-        // Add activity notifications for members (exclude payer maybe?)
-        for (const member of group.members) {
-          try {
-            await Notification.create({
-              recipient: member._id,
-              sender: deletedExpense.paidBy,
-              type: action === "edit" ? "expense_edited" : "expense_deleted",
-              message: action === "edit"
-                ? `An expense \"${deletedExpense.title}\" was edited in ${group.name}`
-                : `An expense \"${deletedExpense.title}\" was deleted from ${group.name}`,
-              referenceId: deletedExpense._id,
-            });
-          } catch (notifErr) {
-            console.error("Error creating activity notification for deletion/edit:", notifErr);
+    setImmediate(async () => {
+      // 6) 🔔 Notify group members AFTER commit and create activity entries
+      if (deletedExpense.group) {
+        const group = await Group.findById(deletedExpense.group).populate(
+          "members",
+          "fcmToken username"
+        );
+        if (group && group.members.length > 0) {
+          const tokens = group.members.map((m) => m.fcmToken).filter(Boolean);
+          if (tokens.length > 0) {
+            const title = action === "edit" ? "Expense Edited" : "Expense Deleted";
+            const body = action === "edit"
+              ? `An expense "${deletedExpense.title}" of amount ₹${deletedExpense.amount} has been edited in group "${group.name}".`
+              : `An expense "${deletedExpense.title}" of amount ₹${deletedExpense.amount} has been deleted from group "${group.name}".`;
+            sendMultipleNotifications(tokens, title, body).catch(err =>
+              console.error("Async FCM push notification error:", err)
+            );
+          }
+
+          // Add activity notifications for members using bulk insertMany
+          const activityLogs = group.members.map((member) => ({
+            recipient: member._id,
+            sender: deletedExpense.paidBy,
+            type: action === "edit" ? "expense_edited" : "expense_deleted",
+            message: action === "edit"
+              ? `An expense "${deletedExpense.title}" was edited in ${group.name}`
+              : `An expense "${deletedExpense.title}" was deleted from ${group.name}`,
+            referenceId: deletedExpense._id,
+          }));
+
+          if (activityLogs.length > 0) {
+            await Notification.insertMany(activityLogs);
           }
         }
       }
-    }
 
-    /* ================= SNAPSHOT: EXPENSE DELETE ================= */
-    if (deletedExpense) {
-      try {
-        await applyExpenseDelete(deletedExpense);
-        deletedExpense.owedBy.forEach(owed => invalidateAICache(owed.user));
-        invalidateAICache(deletedExpense.paidBy);
-      } catch (snapshotErr) {
-        console.error("Snapshot expense delete failed:", snapshotErr);
+      /* ================= SNAPSHOT: EXPENSE DELETE ================= */
+      if (deletedExpense) {
+        try {
+          await applyExpenseDelete(deletedExpense);
+          deletedExpense.owedBy.forEach(owed => invalidateAICache(owed.user));
+          invalidateAICache(deletedExpense.paidBy);
+        } catch (snapshotErr) {
+          console.error("Snapshot expense delete failed:", snapshotErr);
+        }
       }
-    }
-    /* ============================================================ */
+      /* ============================================================ */
+    });
 
-    return res.status(200).json({ success: true, message: "Expense deleted" });
+    return;
   } catch (error) {
     console.error("Error in deleteExpenseController:", error);
     return res.status(500).json({ success: false, message: error.message });

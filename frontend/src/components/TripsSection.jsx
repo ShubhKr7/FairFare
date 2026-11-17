@@ -1,39 +1,18 @@
-import { useState, useEffect } from "react";
+import { useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import Cookies from "js-cookie";
 import TripCard from "./tripCard";
-import api from "../utils/api";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL;
-
-const TripsSection = (user) => {
+const TripsSection = ({ user }) => {
   const navigate = useNavigate();
-  const [trips, setTrips] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchTrips = async () => {
-      try {
-        const userId = Cookies.get("id");
-        if (!userId) {
-          console.error("User ID not found in cookies.");
-          return;
-        }
-
-        // Fetch only the 3 most recent active groups — backend sorts and limits
-        const res = await api.get(`${API_BASE}/group/user-groups/${userId}?limit=3`);
-
-        if (Array.isArray(res.data)) {
-          setTrips(res.data);
-        }
-      } catch (error) {
-        console.error("Error fetching trips:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchTrips();
-  }, [user]); // re-run when user prop changes (e.g. after login)
+  // The user object already carries the 3 most recently updated groups
+  // (backend sorts by updatedAt desc and limits to 3), including tripTotal.
+  // Deriving trips here avoids a redundant API call.
+  const trips = useMemo(() => {
+    const groups = user?.groups;
+    if (!Array.isArray(groups)) return [];
+    return groups;
+  }, [user]);
 
   const handleTripClick = (trip) => {
     navigate(`/tripDetails/${trip._id}`);
@@ -89,11 +68,7 @@ const TripsSection = (user) => {
       {/* --- Trips List Container --- */}
       {/* 'min-h-0' fixes flexbox scrolling issues on some mobile browsers */}
       <div className="flex-1 min-h-0 overflow-y-auto pr-1 -mr-1 space-y-3 custom-scrollbar">
-        {loading ? (
-          <div className="h-32 flex items-center justify-center">
-            <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : trips && trips.length > 0 ? (
+        {trips && trips.length > 0 ? (
           trips.map((trip) => (
             <TripCard
               key={trip._id}
@@ -120,10 +95,20 @@ const TripsSection = (user) => {
                 />
               </svg>
             </div>
-            <p className="text-sm text-zinc-400 font-medium">No active trips</p>
+            <p className="text-sm text-zinc-400 font-medium">
+              Create your first trip
+            </p>
             <p className="text-[10px] md:text-xs text-zinc-600 mt-1">
               Start planning your next adventure.
             </p>
+            <Link to="/addTrip" className="mt-3">
+              <button
+                type="button"
+                className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-all shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95"
+              >
+                Start
+              </button>
+            </Link>
           </div>
         )}
       </div>

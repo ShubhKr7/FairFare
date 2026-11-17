@@ -30,6 +30,267 @@ const handleScrollTop = () => {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
+// UPI ID (VPA) format: username@bankhandle (e.g. john.doe@ybl, 9876543210@paytm)
+// The handle part is alphanumeric (with . _ -), and the domain after @ MUST be a
+// known UPI bank/payment handle. Whitelisting the bank handle is what blocks
+// users from entering email addresses (e.g. name@gmail, user@yahoo) as a UPI ID,
+// since a bare regex alone cannot tell "@ybl" from "@gmail".
+//
+// This list is compiled from NPCI's live UPI ecosystem (PSPs/banks) as of 2026.
+// Source: NPCI UPI ecosystem + major PSP documentation (PhonePe, Google Pay, Paytm, BHIM, etc.)
+// Note: Many banks use multiple handles; some handles are shared across PSPs.
+const UPI_BANK_HANDLES = new Set([
+  // === Major Payment Apps / PSPs ===
+  "ybl",        // Yes Bank (PhonePe, BHIM, etc.)
+  "paytm",      // Paytm Payments Bank
+  "phonepe",    // PhonePe
+  "gpay",       // Google Pay
+  "bhim",       // BHIM
+  "upi",        // Generic UPI/BHIM
+
+  // === Paytm TPAP handles (Paytm routes UPI IDs through partner banks) ===
+  "ptaxis",     // Paytm + Axis Bank
+  "ptyes",      // Paytm + Yes Bank
+  "ptsbi",      // Paytm + SBI
+  "ptfbl",      // Paytm + Federal Bank
+  "ptkbl",      // Paytm + Karnataka Bank
+  "ptkvb",      // Paytm + Karur Vysya Bank
+  "ptcan",      // Paytm + Canara Bank
+  "ptcbl",      // Paytm (shared)
+  "ptnbl",      // Paytm (shared)
+  "ptiob",      // Paytm + Indian Overseas Bank
+  "ptvbl",      // Paytm (shared)
+  "ptbob",      // Paytm + Bank of Baroda
+  "ptpn",       // Paytm + Punjab National Bank
+  "ptind",      // Paytm + Indian Bank
+  "ptall",      // Paytm + Allahabad Bank
+  "ptsynd",     // Paytm + Syndicate Bank
+  "ptcorp",     // Paytm + Corporation Bank
+  "ptvij",      // Paytm + Vijaya Bank
+  "ptmah",      // Paytm + Bank of Maharashtra
+  "ptdcb",      // Paytm + DCB Bank
+  "ptrbl",      // Paytm + RBL Bank
+  "ptbandhan",  // Paytm + Bandhan Bank
+  "ptidbi",     // Paytm + IDBI Bank
+  "ptindus",    // Paytm + IndusInd Bank
+  "ptsib",      // Paytm + South Indian Bank
+  "ptcity",     // Paytm + City Union Bank
+  "pttmb",      // Paytm + Tamilnad Mercantile
+  "ptesaf",     // Paytm + ESAF Small Finance
+  "ptfino",     // Paytm + Fino Payments Bank
+  "ptequitas",  // Paytm + Equitas Small Finance
+  "ptutkarsh",  // Paytm + Utkarsh Small Finance
+  "ptujjivan",  // Paytm + Ujjivan Small Finance
+  "ptsuryoday", // Paytm + Suryoday Small Finance
+  "ptjio",      // Paytm + Jio Payments Bank
+  "ptairtel",   // Paytm + Airtel Payments Bank
+  "ptpost",     // Paytm + India Post Payments Bank
+  "ptlbb",      // Paytm + Lakshmi Vilas Bank
+  "ptdhan",     // Paytm + Dhanlaxmi Bank
+  "ptkotak",    // Paytm + Kotak Mahindra
+  "pthdfc",     // Paytm + HDFC Bank
+  "pticici",    // Paytm + ICICI Bank
+  "ptfederal",  // Paytm + Federal Bank (alt)
+
+  // === PhonePe TPAP handles (PhonePe routes UPI IDs through partner banks) ===
+  "ppybl",      // PhonePe + Yes Bank
+  "ppbl",       // PhonePe + Yes Bank (alt)
+  "ppaxis",     // PhonePe + Axis Bank
+  "ppkbl",      // PhonePe + Karnataka Bank
+  "ppkvb",      // PhonePe + Karur Vysya Bank
+  "ppicici",    // PhonePe + ICICI Bank
+  "ppkotak",    // PhonePe + Kotak Mahindra
+  "pplnb",      // PhonePe (shared)
+  "ppsbi",      // PhonePe + SBI
+  "pphdfc",     // PhonePe + HDFC Bank
+  "ppfbl",      // PhonePe + Federal Bank
+  "ppbob",      // PhonePe + Bank of Baroda
+  "ppnbl",      // PhonePe (shared)
+  "ppvbl",      // PhonePe (shared)
+  "ppidbi",     // PhonePe + IDBI Bank
+  "ppindus",    // PhonePe + IndusInd Bank
+  "ppyes",      // PhonePe + Yes Bank (alt)
+  "ppcan",      // PhonePe + Canara Bank
+  "ppdcb",      // PhonePe + DCB Bank
+  "ppbandhan",  // PhonePe + Bandhan Bank
+  "ppcity",     // PhonePe + City Union Bank
+  "pptmb",      // PhonePe + Tamilnad Mercantile
+  "ppesaf",     // PhonePe + ESAF Small Finance
+  "ppfino",     // PhonePe + Fino Payments Bank
+  "ppequitas",  // PhonePe + Equitas Small Finance
+  "pputkarsh",  // PhonePe + Utkarsh Small Finance
+  "ppujjivan",  // PhonePe + Ujjivan Small Finance
+  "ppsuryoday", // PhonePe + Suryoday Small Finance
+  "ppjio",      // PhonePe + Jio Payments Bank
+  "ppairtel",   // PhonePe + Airtel Payments Bank
+  "pppost",     // PhonePe + India Post Payments Bank
+  "pplbb",      // PhonePe + Lakshmi Vilas Bank
+  "ppdhan",     // PhonePe + Dhanlaxmi Bank
+  "ppfederal",  // PhonePe + Federal Bank (alt)
+
+  // === Major Banks (common handles) ===
+  "fbl",        // Federal Bank
+  "federal",    // Federal Bank (alt)
+  "axis",       // Axis Bank
+  "kotak",      // Kotak Mahindra
+  "sbi",        // State Bank of India
+  "oksbi",      // SBI (OK variant)
+  "icici",      // ICICI Bank
+  "okicici",    // ICICI (OK variant)
+  "okaxis",     // Axis (OK variant)
+  "okhdfc",     // HDFC (OK variant)
+  "okkotak",    // Kotak (OK variant)
+
+  // === HDFC & variants ===
+  "hdfc",       // HDFC Bank
+  "hdfcbank",   // HDFC (alt)
+
+  // === Other Major Banks ===
+  "idbi",       // IDBI Bank
+  "boi",        // Bank of India
+  "pnb",        // Punjab National Bank
+  "can",        // Canara Bank
+  "canarabank", // Canara (alt)
+  "sib",        // South Indian Bank
+  "south",      // South Indian Bank (alt)
+  "indus",      // IndusInd Bank
+  "indusind",   // IndusInd (alt)
+  "kotakmahindra", // Kotak (full name)
+  "rbl",        // RBL Bank
+  "rblbank",    // RBL (alt)
+  "bandhan",    // Bandhan Bank
+  "bandhanbank", // Bandhan (alt)
+  "dcb",        // DCB Bank
+  "dcbbank",    // DCB (alt)
+  "idfc",       // IDFC First Bank
+  "idfcfirst",  // IDFC (alt)
+  "yes",        // Yes Bank
+  "yesbank",    // Yes Bank (alt)
+
+  // === Public Sector Banks ===
+  "ubi",        // Union Bank of India
+  "unionbank",  // Union Bank (alt)
+  "iob",        // Indian Overseas Bank
+  "iobank",     // Indian Overseas (alt)
+  "central",    // Central Bank of India
+  "centralbank", // Central (alt)
+  "indian",     // Indian Bank
+  "indianbank", // Indian Bank (alt)
+  "bob",        // Bank of Baroda
+  "bankofbaroda", // BoB (alt)
+  "pnbindia",   // PNB (alt)
+  "mah",        // Bank of Maharashtra
+  "maharashtra", // Maharashtra (alt)
+  "syn",        // Syndicate Bank (now Canara)
+  "syndicate",  // Syndicate (alt)
+  "vij",        // Vijaya Bank (now BoB)
+  "vijaya",     // Vijaya (alt)
+  "corp",       // Corporation Bank (now Union)
+  "corporation", // Corp (alt)
+  "andhra",     // Andhra Bank (now Union)
+  "andhrabank", // Andhra (alt)
+  "all",        // Allahabad Bank (now Indian)
+  "allahabad",  // Allahabad (alt)
+
+  // === Regional / Cooperative / Small Finance ===
+  "kbl",        // Karnataka Bank
+  "karnataka",  // Karnataka (alt)
+  "kvb",        // Karur Vysya Bank
+  "karur",      // Karur (alt)
+  "city",       // City Union Bank
+  "cityunion",  // City Union (alt)
+  "tmb",        // Tamilnad Mercantile
+  "tamilnad",   // TMB (alt)
+  "lbb",        // Lakshmi Vilas Bank
+  "lvs",        // Lakshmi Vilas (alt)
+  "dhan",       // Dhanlaxmi Bank
+  "dhanlaxmi",  // Dhanlaxmi (alt)
+  "fino",       // Fino Payments Bank
+  "finv",       // Fino (alt)
+  "equitas",    // Equitas Small Finance
+  "esaf",       // ESAF Small Finance
+  "esafbank",   // ESAF (alt)
+  "janabank",   // Jana Small Finance
+  "utkarsh",    // Utkarsh Small Finance
+  "ujjivan",    // Ujjivan Small Finance
+  "suryoday",   // Suryoday Small Finance
+  "north",      // North East Small Finance
+  "fincare",    // Fincare Small Finance
+
+  // === Payments Banks ===
+  "airtel",     // Airtel Payments Bank
+  "airtelbank", // Airtel (alt)
+  "jio",        // Jio Payments Bank
+  "jiobank",    // Jio (alt)
+  "post",       // India Post Payments Bank
+  "ippb",       // IPPB (alt)
+  "fino",       // Fino (already listed)
+  "paytm",      // Paytm (already listed)
+
+  // === Wallets / Fintech ===
+  "freecharge", // Freecharge
+  "mobikwik",   // Mobikwik
+  "amazon",     // Amazon Pay
+  "amazonpay",  // Amazon Pay (alt)
+  "flipkart",   // PhonePe (alt)
+  "juspay",     // Juspay
+  "bharatpe",   // BharatPe
+  "bharatpepay", // BharatPe (alt)
+  "cred",       // CRED
+  "payu",       // PayU
+  "billdesk",   // BillDesk
+  "razorpay",   // Razorpay
+  "cashfree",   // Cashfree
+
+  // === Common shared / legacy ===
+  "jpmc",       // JPMorgan Chase
+  "sc",         // Standard Chartered
+  "scb",        // Standard Chartered (alt)
+  "hsbc",       // HSBC
+  "citi",       // Citibank
+  "db",         // Deutsche Bank
+  "bnp",        // BNP Paribas
+  "barclays",   // Barclays
+
+  // === Less common but valid ===
+  "sbm",        // State Bank of Mauritius
+  "iciciindia", // ICICI (alt)
+  "sbiupi",     // SBI UPI
+  "hdfcupi",    // HDFC UPI
+  "axisupi",    // Axis UPI
+  "kotakupi",   // Kotak UPI
+  "pnbupi",     // PNB UPI
+  "bobupi",     // BoB UPI
+  "canupi",     // Canara UPI
+  "unionupi",   // Union UPI
+  "indianupi",  // Indian Bank UPI
+  "centralupi", // Central UPI
+  "mahaupi",    // Maharashtra UPI
+  "idbiupe",    // IDBI UPI
+  "rblupi",     // RBL UPI
+  "federalupi", // Federal UPI
+  "bandhanupi", // Bandhan UPI
+  "dcbupi",     // DCB UPI
+  "idfcupi",    // IDFC UPI
+  "yesupi",     // Yes UPI
+  "kvbupi",     // KVB UPI
+  "cityupi",    // City Union UPI
+  "tmbupi",     // TMB UPI
+  "esafupi",    // ESAF UPI
+  "utkarshupi", // Utkarsh UPI
+  "ujjivanupi", // Ujjivan UPI
+  "suryodayupi", // Suryoday UPI
+]);
+
+const UPI_REGEX = /^[a-zA-Z0-9._-]{2,50}@[a-zA-Z0-9]{2,10}$/;
+
+const isValidUpi = (vpa) => {
+  if (!vpa) return false;
+  if (!UPI_REGEX.test(vpa)) return false;
+  const handle = vpa.split("@")[1].toLowerCase();
+  return UPI_BANK_HANDLES.has(handle);
+};
+
 const ProfileEnhanced = () => {
   const [profile, setProfile] = useState({
     username: "",
@@ -49,6 +310,7 @@ const ProfileEnhanced = () => {
   const [selectedAvatarPath, setSelectedAvatarPath] = useState(null); // public path for predefined avatars
   const [isHoveringPhoto, setIsHoveringPhoto] = useState(false);
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [upiError, setUpiError] = useState("");
 
   const handleSignOut = async () => {
     console.log("Sign out");
@@ -163,13 +425,38 @@ const ProfileEnhanced = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    const sanitizedValue = name === "username" ? value.replace(/\s/g, "") : value;
+    let sanitizedValue = name === "username" ? value.replace(/\s/g, "") : value;
+    // UPI IDs must not start or end with spaces
+    if (name === "upiId") {
+      sanitizedValue = sanitizedValue.trim();
+    }
     setUsername(sanitizedValue);
     setProfile({ ...profile, [name]: sanitizedValue });
+
+    if (name === "upiId") {
+      if (!sanitizedValue) {
+        setUpiError("UPI ID cannot be empty");
+      } else if (!isValidUpi(sanitizedValue)) {
+        setUpiError("Enter a valid UPI ID (e.g. name@ybl, not name@gmail)");
+      } else {
+        setUpiError("");
+      }
+    }
   };
 
   const handleGenderChange = (value) => {
     setProfile({ ...profile, gender: value });
+  };
+
+  const validateUpi = () => {
+    const vpa = (profile.upiId || "").trim();
+    if (!vpa) {
+      setUpiError("UPI ID cannot be empty");
+    } else if (!isValidUpi(vpa)) {
+      setUpiError("Enter a valid UPI ID (e.g. name@ybl, not name@gmail)");
+    } else {
+      setUpiError("");
+    }
   };
 
   const handleFileChange = (e) => {
@@ -206,7 +493,7 @@ const ProfileEnhanced = () => {
     }
     const payload = {
       username: profile.username,
-      upiId: profile.upiId,
+      upiId: (profile.upiId || "").trim(),
       gender: profile.gender,
     };
     // If a predefined avatar was selected, include it so the backend saves it directly
@@ -250,6 +537,17 @@ const ProfileEnhanced = () => {
 
     if (profile.username && /\s/.test(profile.username)) {
       toast.error("Username cannot contain spaces");
+      return;
+    }
+
+    const upiId = (profile.upiId || "").trim();
+    if (!upiId) {
+      toast.error("UPI ID cannot be empty");
+      return;
+    }
+
+    if (!isValidUpi(upiId)) {
+      toast.error("Please enter a valid UPI ID (e.g. name@ybl, not name@gmail)");
       return;
     }
 
@@ -631,10 +929,16 @@ Let's split and share smarter with FairFare! 💸`;
                     name="upiId"
                     value={profile.upiId}
                     onChange={handleChange}
-                    className="block w-full pl-12 pr-4 py-4 bg-zinc-900/40 border border-white/5 rounded-xl text-white placeholder-zinc-700 focus:border-indigo-500/50 focus:bg-zinc-900/80 focus:outline-none transition-all shadow-inner"
-                    placeholder="username@bank"
+                    onBlur={validateUpi}
+                    className={`block w-full pl-12 pr-4 py-4 bg-zinc-900/40 border ${upiError ? "border-red-500/50" : "border-white/5"} rounded-xl text-white placeholder-zinc-700 focus:border-indigo-500/50 focus:bg-zinc-900/80 focus:outline-none transition-all shadow-inner`}
+                    placeholder="name@ybl"
                   />
                 </div>
+                {upiError && (
+                  <p className="text-red-400 text-xs font-medium mt-1 ml-1">
+                    {upiError}
+                  </p>
+                )}
               </motion.div>
 
               {/* Bottom Actions */}
@@ -653,17 +957,18 @@ Let's split and share smarter with FairFare! 💸`;
                   type="submit"
                   disabled={
                     !profile.upiId ||
+                    !!upiError ||
                     uploading ||
                     !isUsernameAvailable ||
                     checkingUsername ||
                     !profile.gender
                   }
-                  className={`w-full py-4 rounded-xl font-bold text-sm uppercase tracking-widest shadow-xl transition-all duration-300 ${!profile.upiId || uploading || !profile.gender || !isUsernameAvailable || checkingUsername
+                  className={`w-full py-4 rounded-xl font-bold text-sm uppercase tracking-widest shadow-xl transition-all duration-300 ${!profile.upiId || upiError || uploading || !profile.gender || !isUsernameAvailable || checkingUsername
                     ? "bg-zinc-800 text-zinc-600 cursor-not-allowed border border-white/5"
                     : "bg-indigo-400/70 text-zinc-950 hover:bg-white hover:shadow-zinc-500/10"
                     }`}
-                  whileTap={!(!profile.upiId || uploading || !profile.gender || !isUsernameAvailable || checkingUsername) ? { scale: 0.97 } : {}}
-                  whileHover={!(!profile.upiId || uploading || !profile.gender || !isUsernameAvailable || checkingUsername) ? { scale: 1.02 } : {}}
+                  whileTap={(!profile.upiId || upiError || uploading || !profile.gender || !isUsernameAvailable || checkingUsername) ? {} : { scale: 0.97 }}
+                  whileHover={(!profile.upiId || upiError || uploading || !profile.gender || !isUsernameAvailable || checkingUsername) ? {} : { scale: 1.02 }}
                 >
                   {uploading ? (
                     <span className="flex items-center justify-center gap-2">

@@ -1,12 +1,12 @@
 name: FairFare CI Pipeline
 
 on:
-  push:
-    branches:
-      - shikhar
   pull_request:
-    branches:
-      - shikhar
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
 
 jobs:
   frontend-ci:

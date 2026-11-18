@@ -25,11 +25,10 @@
 //   - initBloomFilter() -> that queries MongoDB; belongs in an integration test.
 //   - The global bloomFilter singleton -> stateful; test the class instead.
 //
-// STATUS: Phase 1 starter. Real cases below; expand as needed.
-//   Currently implemented: constructor math, basic add/test, falsy-input
-//   handling (undefined/null/""/0/false), number<->string coercion, object
-//   keys. Remaining cases (zero false negatives across many keys, FP-rate
-//   threshold, clear()) are TODOs — not yet written.
+// STATUS: Phase 1 complete. All scenarios from the Phase 1 list are implemented
+//   below: constructor math, zero false negatives, FP-rate threshold, edge
+//   cases (falsy inputs, coercion, object keys), clear(), and determinism.
+//   Only initBloomFilter() and the global singleton remain untested (integration).
 // =============================================================================
 
 import { BloomFilter } from "../../../utils/bloomFilter.js";
@@ -85,5 +84,53 @@ describe("BloomFilter edge cases (falsy inputs and invalid types)", () => {
     f.add(123);
     expect(f.test(123)).toBe(true);
     expect(f.test("123")).toBe(true);
+  });
+});
+
+describe("BloomFilter correctness", () => {
+  const N = 1000;
+  const SEEN = Array.from({ length: N }, (_, i) => `user_${i}`);
+  const UNSEEN = Array.from({ length: 20000 }, (_, i) => `unseen_${i + N}`);
+
+  let filter;
+  beforeEach(() => {
+    filter = new BloomFilter(N, 0.01);
+    for (const key of SEEN) filter.add(key);
+  });
+
+  test("zero false negatives: every added key tests true", () => {
+    for (const key of SEEN) {
+      expect(filter.test(key)).toBe(true);
+    }
+    expect(filter.count).toBe(N);
+  });
+
+  test("false-positive rate stays under threshold for never-added keys", () => {
+    // Empirically ~0.0091 for this config; 0.05 gives 5x headroom so the
+    // test stays non-flaky while still catching a broken implementation.
+    let falsePositives = 0;
+    for (const key of UNSEEN) {
+      if (filter.test(key)) falsePositives++;
+    }
+    const rate = falsePositives / UNSEEN.length;
+    expect(rate).toBeLessThanOrEqual(0.05);
+  });
+
+  test("clear() resets the filter to a fresh state", () => {
+    expect(filter.count).toBe(N);
+    filter.clear();
+    expect(filter.count).toBe(0);
+    expect(filter.test("user_0")).toBe(false);
+    expect(filter.test("user_999")).toBe(false);
+    // After clear, previously-unseen keys are still not present.
+    expect(filter.test("unseen_0")).toBe(false);
+  });
+
+  test("index generation is deterministic across independent instances", () => {
+    const other = new BloomFilter(N, 0.01);
+    const key = "user_42";
+    expect(other._getIndices(key)).toEqual(filter._getIndices(key));
+    // Same instance is also stable across repeated calls.
+    expect(filter._getIndices(key)).toEqual(filter._getIndices(key));
   });
 });

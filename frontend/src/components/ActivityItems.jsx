@@ -18,6 +18,9 @@ const ActivityItems = forwardRef(({
 }, ref) => {
   const [isLoading, setIsLoading] = useState(false);
   const [localIsRead, setLocalIsRead] = useState(isRead);
+  // expense_deleted has no valid expense to anchor to (it was deleted) —
+  // clicking it should just open the chat with the sender, not redirect.
+  const isChatOnlyActivity = type === "expense_deleted";
   const isDeepLinkActivity =
     String(type || "").includes("expense") || type === "payment_received";
 
@@ -102,11 +105,15 @@ const ActivityItems = forwardRef(({
   };
 
   const handleActivityClick = () => {
-    if (!isDeepLinkActivity || !sender?._id || !referenceId) {
+    if (!isDeepLinkActivity || !sender?._id) {
       return;
     }
 
-    onActivityClick?.({ friendId: sender._id, expenseId: referenceId });
+    onActivityClick?.({
+      friendId: sender._id,
+      expenseId: referenceId,
+      chatOnly: isChatOnlyActivity,
+    });
   };
 
   const handleKeyDown = (event) => {

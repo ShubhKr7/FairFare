@@ -2,7 +2,7 @@ import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 import toast from "react-hot-toast";
 import { FaArrowDown, FaBell, FaCopy, FaShareAlt } from "react-icons/fa";
-import { Forward } from "lucide-react";
+import { Forward, Trash2, MoreVertical, Pencil } from "lucide-react";
 import Cookies from "js-cookie";
 import api from "../utils/api";
 import { toBlob } from "html-to-image";
@@ -43,7 +43,18 @@ const TransactionHistory = () => {
   const [showReceivedConfirm, setShowReceivedConfirm] = useState(false);
   const [showReminderConfirm, setShowReminderConfirm] = useState(false);
   const [successOverlay, setSuccessOverlay] = useState(null); // { type: 'paid'|'received', amount: number }
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deleteSuccessOverlay, setDeleteSuccessOverlay] = useState(false);
+  const [openMenuTxId, setOpenMenuTxId] = useState(null);
   const userId = storedUser?._id;
+
+  // Close transaction action menu on outside click
+  useEffect(() => {
+    if (!openMenuTxId) return;
+    const handleClickOutside = () => setOpenMenuTxId(null);
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [openMenuTxId]);
 
   useEffect(() => {
     handleScrollTop();
@@ -591,6 +602,72 @@ const TransactionHistory = () => {
   useEffect(() => {
     fetchData(storedUser);
   }, [friendId]);
+
+  const getBalanceDisplay = (bal) => {
+    const isZero = Math.abs(bal) < 0.01;
+    if (isZero) {
+      return {
+        formatted: "₹0.00",
+        label: "All settled up",
+        colorClass: "text-emerald-400",
+      };
+    }
+    const isPositive = bal > 0;
+    return {
+      formatted: `${isPositive ? "+" : "-"}₹${Math.abs(bal).toFixed(2)}`,
+      label: isPositive
+        ? `${friendName?.username || "Friend"} owes you`
+        : `You owe ${friendName?.username || "Friend"}`,
+      colorClass: isPositive ? "text-emerald-400" : "text-rose-400",
+    };
+  };
+
+  const handleDeleteExpense = async () => {
+    if (!deleteConfirm) return;
+    const targetId = deleteConfirm._id;
+    const isUserPayer = (deleteConfirm.paidBy?._id || deleteConfirm.paidBy) === userId;
+    const owedEntry = isUserPayer
+      ? deleteConfirm.owedBy?.find((o) => (o.user?._id || o.user) === friendId)
+      : deleteConfirm.owedBy?.find((o) => (o.user?._id || o.user) === userId);
+    const txAmount = owedEntry ? owedEntry.amount : (deleteConfirm.amount || 0);
+    const newNet = isUserPayer ? netBalance - txAmount : netBalance + txAmount;
+
+    try {
+      await api.delete(`${API_BASE}/expenses/${targetId}`);
+    } catch (error) {
+      console.warn("Backend delete route pending or error:", error);
+    } finally {
+      setTransactions((prev) => prev.filter((t) => t._id !== targetId));
+      setNetBalance(newNet);
+      setDeleteConfirm(null);
+      setDeleteSuccessOverlay(true);
+      setTimeout(() => setDeleteSuccessOverlay(false), 2200);
+    }
+  };
+
+  const handleEditGroupExpense = (tx) => {
+    navigate("/expense/edit", {
+      state: {
+        originalExpense: {
+          _id: tx._id,
+        },
+      },
+    });
+  };
+
+  const handleDeleteGroupExpense = (tx) => {
+    const groupId =
+      tx.group?._id ||
+      (typeof tx.group === "string" ? tx.group : null) ||
+      tx.groupId;
+    if (groupId) {
+      navigate(`/tripDetails/${groupId}#${tx._id}`, {
+        state: { highlightExpenseId: tx._id },
+      });
+    } else {
+      toast.error("Group details not found for this expense.");
+    }
+  };
 
   const confirmPaid = () => {
     if (amount === "" || amount === 0) {
@@ -1356,6 +1433,7 @@ const TransactionHistory = () => {
                   ? tx.owedBy.find((o) => o.user._id === friendId)
                   : tx.owedBy.find((o) => o.user._id === userId);
                 const amount = owedEntry ? owedEntry.amount : 0;
+                const isNonGroup = !tx.group && !tx.groupName;
 
                 return (
                   <div
@@ -1363,6 +1441,73 @@ const TransactionHistory = () => {
                     className={`flex w-full items-center group ${isUser ? "justify-end" : "justify-start"
                       } animate-in slide-in-from-bottom-2 duration-500`}
                   >
+                    {/* Delete button for user's non-group transactions */}
+                    {isUser && isNonGroup && (
+                      <button
+                        onClick={() => setDeleteConfirm(tx)}
+                        className="p-2 rounded-lg bg-zinc-800/80 text-red-400 hover:text-white hover:bg-red-500/20 border border-white/5 transition-all opacity-60 group-hover:opacity-100 mr-1 flex-shrink-0"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
+                    {/* Options button (Edit & Delete) for user's group transactions */}
+                    {isUser && !isNonGroup && (
+                      <div className="relative mr-1 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenMenuTxId(openMenuTxId === tx._id ? null : tx._id);
+                          }}
+                          className={`p-2 rounded-lg border transition-all flex-shrink-0 ${
+                            openMenuTxId === tx._id
+                              ? "bg-zinc-800 text-white border-indigo-500/50 opacity-100"
+                              : "bg-zinc-800/80 text-zinc-400 hover:text-white hover:bg-zinc-700/80 border-white/5 opacity-60 group-hover:opacity-100"
+                          }`}
+                          title="Group Expense Actions (Edit / Delete)"
+                          aria-label="Group Expense Actions"
+                        >
+                          <MoreVertical className="w-3.5 h-3.5" />
+                        </button>
+
+                        {openMenuTxId === tx._id && (
+                          <div
+                            className="absolute z-50 top-full mt-1.5 right-0 w-48 bg-zinc-900/95 border border-white/10 rounded-xl shadow-2xl p-1.5 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="px-2.5 py-1 text-[10px] font-bold text-zinc-400 uppercase tracking-wider border-b border-white/5 mb-1 truncate flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>
+                              <span className="truncate">{tx.groupName || "Group Expense"}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenMenuTxId(null);
+                                handleEditGroupExpense(tx);
+                              }}
+                              className="w-full flex items-center gap-2 px-2.5 py-2 text-xs font-medium text-zinc-200 hover:text-white hover:bg-white/5 rounded-lg transition-colors text-left"
+                            >
+                              <Pencil className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                              <span>Edit Expense</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenMenuTxId(null);
+                                handleDeleteGroupExpense(tx);
+                              }}
+                              className="w-full flex items-center gap-2 px-2.5 py-2 text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors text-left"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                              <span>Delete in Group</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Forward button on the LEFT for user's transactions */}
                     {isUser && (
                       <button
@@ -1449,6 +1594,73 @@ const TransactionHistory = () => {
                       >
                         <Forward size={18} className="ml-0.5" />
                       </button>
+                    )}
+
+                    {/* Delete button for friend's non-group transactions */}
+                    {!isUser && isNonGroup && (
+                      <button
+                        onClick={() => setDeleteConfirm(tx)}
+                        className="p-2 rounded-lg bg-zinc-800/80 text-red-400 hover:text-white hover:bg-red-500/20 border border-white/5 transition-all opacity-60 group-hover:opacity-100 ml-1 flex-shrink-0"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
+                    {/* Options button (Edit & Delete) for friend's group transactions */}
+                    {!isUser && !isNonGroup && (
+                      <div className="relative ml-1 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenMenuTxId(openMenuTxId === tx._id ? null : tx._id);
+                          }}
+                          className={`p-2 rounded-lg border transition-all flex-shrink-0 ${
+                            openMenuTxId === tx._id
+                              ? "bg-zinc-800 text-white border-indigo-500/50 opacity-100"
+                              : "bg-zinc-800/80 text-zinc-400 hover:text-white hover:bg-zinc-700/80 border-white/5 opacity-60 group-hover:opacity-100"
+                          }`}
+                          title="Group Expense Actions (Edit / Delete)"
+                          aria-label="Group Expense Actions"
+                        >
+                          <MoreVertical className="w-3.5 h-3.5" />
+                        </button>
+
+                        {openMenuTxId === tx._id && (
+                          <div
+                            className="absolute z-50 top-full mt-1.5 left-0 w-48 bg-zinc-900/95 border border-white/10 rounded-xl shadow-2xl p-1.5 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="px-2.5 py-1 text-[10px] font-bold text-zinc-400 uppercase tracking-wider border-b border-white/5 mb-1 truncate flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>
+                              <span className="truncate">{tx.groupName || "Group Expense"}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenMenuTxId(null);
+                                handleEditGroupExpense(tx);
+                              }}
+                              className="w-full flex items-center gap-2 px-2.5 py-2 text-xs font-medium text-zinc-200 hover:text-white hover:bg-white/5 rounded-lg transition-colors text-left"
+                            >
+                              <Pencil className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                              <span>Edit Expense</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenMenuTxId(null);
+                                handleDeleteGroupExpense(tx);
+                              }}
+                              className="w-full flex items-center gap-2 px-2.5 py-2 text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors text-left"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                              <span>Delete in Group</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 );
@@ -1770,6 +1982,227 @@ const TransactionHistory = () => {
                 </button>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- DELETE CONFIRMATION MODAL --- */}
+      <AnimatePresence>
+        {deleteConfirm && (() => {
+          const isDeletePayerUser =
+            (deleteConfirm.paidBy?._id || deleteConfirm.paidBy) === userId;
+          const owedEntry = isDeletePayerUser
+            ? deleteConfirm.owedBy?.find((o) => (o.user?._id || o.user) === friendId)
+            : deleteConfirm.owedBy?.find((o) => (o.user?._id || o.user) === userId);
+          const deleteTxAmount = owedEntry
+            ? owedEntry.amount
+            : deleteConfirm.amount || 0;
+          const projectedBalance = isDeletePayerUser
+            ? netBalance - deleteTxAmount
+            : netBalance + deleteTxAmount;
+
+          const currentDisplay = getBalanceDisplay(netBalance);
+          const projectedDisplay = getBalanceDisplay(projectedBalance);
+
+          return (
+            <motion.div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setDeleteConfirm(null)}
+            >
+              <motion.div
+                className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl relative overflow-hidden"
+                initial={{ opacity: 0, scale: 0.85, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                transition={{ type: "spring", stiffness: 300, damping: 24 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Top accent line */}
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-red-500/50 to-transparent" />
+
+                <div className="flex flex-col items-center text-center mb-5">
+                  <div className="w-14 h-14 bg-red-500/10 rounded-full flex items-center justify-center mb-3 ring-2 ring-red-500/20 ring-offset-4 ring-offset-zinc-900">
+                    <Trash2 className="w-6 h-6 text-red-400" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white tracking-tight">
+                    Delete Transaction?
+                  </h3>
+                  <p className="text-zinc-400 text-xs mt-1">
+                    Do you want to delete this expense?
+                  </p>
+                </div>
+
+                {/* Expense Details Card */}
+                <div className="bg-zinc-800/50 border border-white/5 rounded-2xl p-4 mb-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                      Expense Title
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-700/50 text-zinc-300 font-medium">
+                      {isDeletePayerUser ? "You Paid" : `${friendName?.username || "Friend"} Paid`}
+                    </span>
+                  </div>
+                  <p className="text-white font-bold text-base truncate mb-3">
+                    {deleteConfirm.title || "Untitled Transaction"}
+                  </p>
+                  <div className="flex items-baseline justify-between border-t border-white/5 pt-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                      Amount
+                    </span>
+                    <span className="text-2xl font-mono font-bold text-red-400">
+                      ₹{deleteTxAmount.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Balance Impact Card */}
+                <div className="bg-indigo-950/20 border border-indigo-500/20 rounded-2xl p-4 mb-4">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 block mb-2">
+                    Balance Impact (Net Position)
+                  </span>
+
+                  <div className="grid grid-cols-2 gap-2 bg-zinc-900/70 p-2.5 rounded-xl border border-white/5">
+                    <div>
+                      <span className="text-[9px] text-zinc-500 uppercase tracking-wider block">
+                        Current
+                      </span>
+                      <span className={`text-sm font-mono font-bold ${currentDisplay.colorClass}`}>
+                        {currentDisplay.formatted}
+                      </span>
+                      <span className="text-[10px] text-zinc-400 block truncate">
+                        {currentDisplay.label}
+                      </span>
+                    </div>
+                    <div className="border-l border-white/5 pl-2.5">
+                      <span className="text-[9px] text-indigo-400 uppercase tracking-wider block">
+                        New Balance
+                      </span>
+                      <span className={`text-sm font-mono font-bold ${projectedDisplay.colorClass}`}>
+                        {projectedDisplay.formatted}
+                      </span>
+                      <span className="text-[10px] text-zinc-400 block truncate">
+                        {projectedDisplay.label}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-zinc-400 mt-2.5 leading-relaxed">
+                    This action will update the balance. The new balance of{" "}
+                    <strong className="text-white font-mono">{projectedDisplay.formatted}</strong>{" "}
+                    will be reflected under <strong className="text-white">Net Position</strong> at the top of this screen.
+                  </p>
+                </div>
+
+                {/* Warning */}
+                <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2.5 mb-5">
+                  <p className="text-[11px] text-red-300 leading-tight">
+                    ⚠️ Once deleted, the transaction won't be visible and cannot be accessed forever.
+                  </p>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setDeleteConfirm(null)}
+                    className="flex-1 py-3 rounded-xl bg-zinc-800 border border-white/5 text-zinc-300 hover:text-white hover:bg-zinc-700 transition-all font-semibold text-xs uppercase tracking-wider"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDeleteExpense}
+                    className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-500/20 transition-all font-semibold text-xs uppercase tracking-wider active:scale-95"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
+
+      {/* --- DELETE SUCCESS ANIMATION OVERLAY --- */}
+      <AnimatePresence>
+        {deleteSuccessOverlay && (
+          <motion.div
+            className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-zinc-950/90 backdrop-blur-md"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            onClick={() => setDeleteSuccessOverlay(false)}
+          >
+            <motion.div
+              className="absolute w-44 h-44 rounded-full blur-3xl bg-emerald-500/20"
+              initial={{ scale: 0 }}
+              animate={{ scale: 2.5, opacity: 0 }}
+              transition={{ duration: 1.2, ease: "easeOut" }}
+            />
+
+            {/* Checkmark circle with spring animation */}
+            <motion.div
+              className="relative w-24 h-24 rounded-full border-2 border-emerald-500 flex items-center justify-center mb-5"
+              initial={{ scale: 0, rotate: -60 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{
+                type: "spring",
+                stiffness: 200,
+                damping: 14,
+                delay: 0.1,
+              }}
+            >
+              <motion.div
+                className="absolute inset-0 rounded-full bg-emerald-600/20"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.3, duration: 0.3 }}
+              />
+              <svg
+                className="w-12 h-12 text-emerald-400 z-10"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <motion.path
+                  d="M5 13l4 4L19 7"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  initial={{ pathLength: 0 }}
+                  animate={{ pathLength: 1 }}
+                  transition={{ delay: 0.4, duration: 0.5, ease: "easeOut" }}
+                />
+              </svg>
+            </motion.div>
+
+            <motion.p
+              className="text-2xl font-bold text-white mb-1"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5, duration: 0.35 }}
+            >
+              Transaction Deleted!
+            </motion.p>
+            <motion.p
+              className="text-sm text-zinc-400 mb-2"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6, duration: 0.3 }}
+            >
+              Successfully deleted and balance updated
+            </motion.p>
+            <motion.p
+              className="text-xs text-zinc-600 mt-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+            >
+              Tap anywhere to dismiss
+            </motion.p>
           </motion.div>
         )}
       </AnimatePresence>

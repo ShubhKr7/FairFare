@@ -4,7 +4,8 @@ import {
     createPersonalExpense,
     getPersonalExpenses,
     deletePersonalExpense,
-    updatePersonalExpense
+    updatePersonalExpense,
+    deleteExpense
 } from '../controllers/expenses.js';
 import { auth } from '../middleware/auth.js';
 
@@ -15,6 +16,9 @@ router.post('/personal', auth, createPersonalExpense);
 router.get('/personal', auth, getPersonalExpenses);
 router.delete('/personal/:id', auth, deletePersonalExpense);
 router.put('/personal/:id', auth, updatePersonalExpense);
+
+// Generic Expense Delete Route (matches frontend DELETE /expenses/:id)
+router.delete('/:id', auth, deleteExpense);
 
 // Friend Expense Routes
 router.get('/:currentUserId/:friendId', auth, getUserFriendExpenses);

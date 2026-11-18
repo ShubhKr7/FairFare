@@ -199,8 +199,14 @@ const ActivityPage = () => {
     fetchUnreadCount();
   };
 
-  const handleActivityClick = ({ friendId, expenseId }) => {
-    if (!friendId || !expenseId) return;
+  const handleActivityClick = ({ friendId, expenseId, chatOnly }) => {
+    if (!friendId) return;
+    // Deleted expenses have no anchorable record — just open the chat
+    if (chatOnly) {
+      navigate(`/transaction-history/${friendId}`);
+      return;
+    }
+    if (!expenseId) return;
     navigate(`/transaction-history/${friendId}#${expenseId}`);
   };
 

@@ -1,5 +1,8 @@
 import mongoose from "mongoose";
 import { Expense, User, Notification } from "../models/schema.js";
+import { sendMultipleNotifications } from "../controllers/Notifications.js";
+import { applyExpenseDelete } from "./snapshots.js";
+import { invalidateAICache } from "./ai.js";
 
 const getUserFriendExpenses = async (req, res) => {
   try {
@@ -247,6 +250,166 @@ const deletePersonalExpense = async (req, res) => {
   }
 };
 
+/**
+ * Delete any expense (personal, friend-split, or group) by ID.
+ * - Reverses friend balance updates (User.friends.$.balance + UserFinancialSnapshot.friends.$.netBalance)
+ * - Removes from payer's recentExpense
+ * - Removes from group if applicable (Group.expenses + tripTotal)
+ * - Creates Notification activity logs
+ * - Sends FCM push notifications (async)
+ * - Rebuilds financial snapshots + invalidates AI cache (async)
+ */
+const deleteExpense = async (req, res) => {
+  const session = await mongoose.startSession();
+  const { id } = req.params;
+  const userId = req.user.id;
+
+  try {
+    // ---- Tamper & Scope Guards (before any DB writes) ----
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid expense ID" });
+    }
+
+    const expense = await Expense.findById(id);
+    if (!expense) {
+      return res.status(404).json({ success: false, message: "Expense not found" });
+    }
+
+    // Reject group expenses — handled elsewhere
+    if (expense.group) {
+      return res.status(400).json({
+        success: false,
+        message: "Group expenses are handled elsewhere and cannot be deleted here",
+      });
+    }
+
+    // Reject personal expenses (no owedBy entries, or only self-owed with no friend split)
+    const hasFriendSplit = expense.owedBy.some(
+      (o) => o.user.toString() !== expense.paidBy.toString()
+    );
+    if (expense.owedBy.length === 0 || !hasFriendSplit) {
+      return res.status(400).json({
+        success: false,
+        message: "Personal expenses cannot be deleted via this endpoint",
+      });
+    }
+
+    // Authorization: user must be the payer OR one of the owedBy users
+    const isPayer = expense.paidBy.toString() === userId.toString();
+    const isOwed = expense.owedBy.some((o) => o.user.toString() === userId.toString());
+    if (!isPayer && !isOwed) {
+      return res.status(403).json({ success: false, message: "Unauthorized to delete this expense" });
+    }
+
+    let deletedExpense = null;
+
+    await session.withTransaction(async () => {
+      // 1) Load the existing expense (within transaction)
+      const txExpense = await Expense.findById(id).session(session);
+      if (!txExpense) {
+        return res.status(404).json({ success: false, message: "Expense not found" });
+      }
+
+      deletedExpense = txExpense.toObject();
+      const { paidBy, owedBy, amount } = txExpense;
+
+      // 2) Reverse each balance update
+      for (const owed of owedBy) {
+        const owedUserId = owed.user.toString();
+        const payerId = paidBy.toString();
+        const owedAmount = owed.amount;
+
+        if (owedUserId === payerId) continue;
+
+        await User.updateOne(
+          { _id: paidBy, "friends.friend": owed.user },
+          { $inc: { "friends.$.balance": -owedAmount } },
+          { session }
+        );
+        await User.updateOne(
+          { _id: owed.user, "friends.friend": paidBy },
+          { $inc: { "friends.$.balance": owedAmount } },
+          { session }
+        );
+      }
+
+      // 3) Remove from payer's recentExpense
+      await User.updateOne(
+        { _id: paidBy },
+        { $pull: { recentExpense: id } },
+        { session }
+      );
+
+      // 4) Delete the Expense document itself
+      await Expense.deleteOne({ _id: id }, { session });
+    });
+
+    if (!deletedExpense) {
+      return; // Response already sent inside transaction
+    }
+
+    res.status(200).json({ success: true, message: "Expense deleted" });
+
+    // 5) Async post-commit work: notifications, activity logs, snapshots, AI cache
+    setImmediate(async () => {
+      try {
+        const { paidBy, owedBy, amount, title } = deletedExpense;
+
+        // Notify involved users (friend-split expenses only) and create activity entries
+        const [payerUser, owedUser] = await Promise.all([
+          User.findById(paidBy, "fcmToken username"),
+          User.findById(owedBy[0].user, "fcmToken username"),
+        ]);
+
+        const tokens = [payerUser?.fcmToken, owedUser?.fcmToken].filter(Boolean);
+        if (tokens.length > 0) {
+          const body = `${title} expense has been deleted. Amount: ₹${amount}`;
+          sendMultipleNotifications(tokens, "Expense Deleted", body).catch(err =>
+            console.error("Async FCM push notification error:", err)
+          );
+        }
+
+        // Create activity notifications for both users so each sees it on their activity page
+        // sender = the other person (friend), so clicking opens chat with them
+        const friendId = owedBy[0].user;
+        const activityLogs = [
+          {
+            recipient: paidBy,
+            sender: friendId,
+            type: "expense_deleted",
+            message: `You deleted the expense "${title}" for ₹${amount}`,
+            referenceId: deletedExpense._id,
+          },
+          {
+            recipient: friendId,
+            sender: paidBy,
+            type: "expense_deleted",
+            message: `${payerUser?.username || "Someone"} deleted the expense "${title}" for ₹${amount}`,
+            referenceId: deletedExpense._id,
+          },
+        ];
+        await Notification.insertMany(activityLogs);
+
+        /* ================= SNAPSHOT: EXPENSE DELETE ================= */
+        await applyExpenseDelete(deletedExpense);
+        deletedExpense.owedBy.forEach(owed => invalidateAICache(owed.user));
+        invalidateAICache(deletedExpense.paidBy);
+        /* ============================================================ */
+      } catch (postCommitErr) {
+        console.error("Post-commit expense delete processing failed:", postCommitErr);
+      }
+    });
+
+  } catch (error) {
+    console.error("Error in deleteExpense:", error);
+    if (!res.headersSent) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  } finally {
+    session.endSession();
+  }
+};
+
 const updatePersonalExpense = async (req, res) => {
   try {
     const { id } = req.params;
@@ -296,5 +459,6 @@ export {
   createPersonalExpense,
   getPersonalExpenses,
   deletePersonalExpense,
-  updatePersonalExpense
+  updatePersonalExpense,
+  deleteExpense
 };

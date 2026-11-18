@@ -33,6 +33,7 @@ const TransactionHistory = () => {
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
 
   const chatContainerRef = useRef(null);
   const bottomRef = useRef(null);
@@ -55,6 +56,14 @@ const TransactionHistory = () => {
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
   }, [openMenuTxId]);
+
+  // Track viewport width so the back button can route to /friends on mobile
+  // and /dash on larger screens (tablet/desktop).
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     handleScrollTop();
@@ -651,6 +660,9 @@ const TransactionHistory = () => {
         originalExpense: {
           _id: tx._id,
         },
+        // If we came from a 1:1 chat, return there after saving instead of
+        // going back to the trip details page.
+        returnToChatFriendId: friendId,
       },
     });
   };
@@ -1221,7 +1233,7 @@ const TransactionHistory = () => {
           <div className="flex items-center gap-1.5">
 
             <button
-              onClick={() => navigate(-1)}
+              onClick={() => navigate(isMobile ? "/friends" : "/dash")}
               className="p-1 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
             >
               <svg

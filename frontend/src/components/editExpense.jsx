@@ -7,6 +7,8 @@ import {
 import { toast } from "react-hot-toast";
 import api from "../utils/api";
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
+
 const handleScrollTop = () => {
   window.scrollTo({
     top: 0,
@@ -19,6 +21,9 @@ const EditExpense = () => {
   const navigate = useNavigate();
   const { state } = useLocation();
   const expenseId = state.originalExpense._id;
+  // When navigating from a 1:1 chat (TransactionHistory), return there after
+  // saving. Otherwise fall back to the trip details page.
+  const returnToChatFriendId = state?.returnToChatFriendId || null;
   const [tripId, setTripId] = useState();
   // console.log(expenseId)
 
@@ -35,27 +40,8 @@ const EditExpense = () => {
   const [originalCreatedAt, setOriginalCreatedAt] = useState(null); // preserve timestamp
   const [successOverlay, setSuccessOverlay] = useState(null); // { amount, title }
 
-  // Determine groupId from localStorage (same as AddExpense)
-  const currentGroup = JSON.parse(
-    localStorage.getItem("currentGroup") || "null"
-  );
-  const groupId = currentGroup ? currentGroup._id : null;
-
   useEffect(() => {
     handleScrollTop();
-  }, []);
-
-  // Load group members from localStorage
-  useEffect(() => {
-    try {
-      const currentGroupLocal = localStorage.getItem("currentGroup");
-      const groupMembers = currentGroupLocal
-        ? JSON.parse(currentGroupLocal).members
-        : [];
-      setMembers(groupMembers);
-    } catch (err) {
-      console.error("Error loading user and friends from localStorage:", err);
-    }
   }, []);
 
   // Fetch existing expense data to pre-fill
@@ -104,6 +90,51 @@ const EditExpense = () => {
 
     fetchExpense();
   }, [expenseId]);
+
+  // Populate the participant list. Prefer localStorage ("currentGroup") when
+  // present (normal flow from tripDetails / AddExpense); otherwise fetch the
+  // group's members from the API once the expense's group id is known.
+  useEffect(() => {
+    if (!tripId) return;
+    if (members.length > 0) return;
+
+    let isMounted = true;
+    const loadMembers = async () => {
+      // 1) Try localStorage first
+      try {
+        const currentGroupLocal = localStorage.getItem("currentGroup");
+        if (currentGroupLocal) {
+          const parsed = JSON.parse(currentGroupLocal);
+          if (parsed && Array.isArray(parsed.members) && parsed.members.length > 0) {
+            if (isMounted) setMembers(parsed.members);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Error loading group from localStorage:", err);
+      }
+
+      // 2) Fall back to fetching group details from the API
+      try {
+        const { data } = await api.get(
+          `${API_BASE}/group/get-group/${tripId}`
+        );
+        if (isMounted && data && Array.isArray(data.members)) {
+          setMembers(data.members);
+          // Cache for any subsequent navigations
+          localStorage.setItem("currentGroup", JSON.stringify(data));
+        }
+      } catch (err) {
+        console.error("Error fetching group members for edit:", err);
+      }
+    };
+
+    loadMembers();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [tripId, members.length]);
 
   // Sync selectAll checkbox
   useEffect(() => {
@@ -186,7 +217,11 @@ const EditExpense = () => {
         setSuccessOverlay({ amount: totalEntered, title: title });
         setTimeout(() => {
           setSuccessOverlay(null);
-          navigate(`/tripDetails/${tripId}`, { state: { expenseEdited: true } });
+          if (returnToChatFriendId) {
+            navigate(`/transaction-history/${returnToChatFriendId}`);
+          } else {
+            navigate(`/tripDetails/${tripId}`, { state: { expenseEdited: true } });
+          }
         }, 2200);
       }
     } catch (error) {

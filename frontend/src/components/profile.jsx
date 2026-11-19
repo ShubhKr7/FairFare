@@ -6,6 +6,7 @@ import Cookies from "js-cookie";
 import toast from "react-hot-toast";
 import { authFetch } from "../utils/authFetch";
 import api from "../utils/api";
+import { clearDashboardSnapshot } from "../utils/dashboardCache";
 import AvatarSelector from "./AvatarSelector";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -315,12 +316,23 @@ const ProfileEnhanced = () => {
   const handleSignOut = async () => {
     console.log("Sign out");
     const userId = Cookies.get("id");
+    if (!navigator.onLine) {
+      await clearDashboardSnapshot(userId);
+      Cookies.remove("id");
+      Cookies.remove("authToken");
+      Cookies.remove("last4");
+      localStorage.clear();
+      navigate("/");
+      toast.success("Signed out successfully");
+      return;
+    }
     try {
       const response = await axios.post(`${API_BASE}/user/remove-fcm-token`, {
         userId: userId,
       });
 
       if (response.status === 200) {
+        await clearDashboardSnapshot(userId);
         Cookies.remove("id");
         Cookies.remove("last4");
         localStorage.clear();

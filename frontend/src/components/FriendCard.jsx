@@ -10,6 +10,7 @@ import { toast } from "react-hot-toast";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import api from "../utils/api";
+import { guardOfflineAction } from "../utils/offlineGuard";
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 const FriendCard = ({
@@ -41,6 +42,7 @@ const FriendCard = ({
   };
 
   const handlePaid = async () => {
+    if (!guardOfflineAction()) return;
     if (settleAmount === "" || settleAmount === 0) return;
     const amount = Math.abs(settleAmount);
     try {
@@ -61,6 +63,7 @@ const FriendCard = ({
   };
 
   const handleReceived = async () => {
+    if (!guardOfflineAction()) return;
     if (settleAmount === "" || settleAmount === 0) return;
     const amount = Math.abs(settleAmount);
     try {
@@ -81,6 +84,7 @@ const FriendCard = ({
   };
 
   const handleSettleBalance = async () => {
+    if (!guardOfflineAction()) return;
     const currentBalance = balance;
     if (currentBalance === 0) {
       toast.error("No balance to settle.");
@@ -122,6 +126,7 @@ const FriendCard = ({
   };
 
   const TransactionHistoryPage = async () => {
+    if (!guardOfflineAction()) return;
     navigate(`/transaction-history/${friend._id}`);
   };
 

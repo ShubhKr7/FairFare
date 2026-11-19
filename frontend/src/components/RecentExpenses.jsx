@@ -1,6 +1,7 @@
 import ExpenseCard from "./expenseCard"; // Make sure this path is correct based on your folder structure
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { guardOfflineAction } from "../utils/offlineGuard";
 
 const RecentExpenses = (user) => {
   const [recentExpenses, setRecentExpenses] = useState([]);
@@ -36,9 +37,17 @@ const RecentExpenses = (user) => {
           Recent Expenses
         </h2>
 <div className="flex items-center gap-3 md:gap-4">
-        <Link to="/allExpenses">
+        <Link
+          to="/allExpenses"
+          onClick={(event) => {
+            guardOfflineAction(event);
+          }}
+        >
           <button
             type="button"
+            onClick={(event) => {
+              guardOfflineAction(event);
+            }}
             className="text-xs font-medium text-zinc-400 hover:text-white transition-colors flex items-center gap-1 group py-1"
           >
             View All
@@ -48,9 +57,17 @@ const RecentExpenses = (user) => {
           </button>
         </Link>
 
-        <Link to="/personal-expenses">
+        <Link
+          to="/personal-expenses"
+          onClick={(event) => {
+            guardOfflineAction(event);
+          }}
+        >
           <button
             type="button"
+            onClick={(event) => {
+              guardOfflineAction(event);
+            }}
             className="w-9 h-9 md:w-8 md:h-8 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center transition-all shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95"
             title="Add personal expense"
           >

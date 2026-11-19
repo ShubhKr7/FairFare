@@ -1,5 +1,4 @@
-import { Outlet } from "react-router-dom";
-import ErrorBoundary from "./ErrorBoundary";
+import { Navigate, Outlet } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
@@ -62,15 +61,17 @@ const AppLayout = () => {
   usePageTracking();
 
   const location = useLocation();
-  const showNavbar = !isPublicRoute(location.pathname);
 
   const [showTerms, setShowTerms] = useState(false);
   const [termsList, setTermsList] = useState([]);
   const [showQuickExpense, setShowQuickExpense] = useState(false);
   const [autoStartVoice, setAutoStartVoice] = useState(false);
+  const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
+  const showNavbar = !isPublicRoute(location.pathname);
 
   useEffect(() => {
     const checkTerms = async () => {
+      if (!navigator.onLine) return;
       const token = Cookies.get("authToken"); // or whatever your token key is
       const id = Cookies.get("id");
 
@@ -100,7 +101,27 @@ const AppLayout = () => {
       // Remove the query param so it doesn't trigger again on refresh
       window.history.replaceState({}, document.title, location.pathname);
     }
-  }, [location.search]);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    const syncConnectionStatus = () => {
+      setIsOffline(!navigator.onLine);
+    };
+
+    if (!navigator.onLine) setIsOffline(true);
+
+    window.addEventListener("offline", syncConnectionStatus);
+    window.addEventListener("online", syncConnectionStatus);
+    window.addEventListener("focus", syncConnectionStatus);
+    document.addEventListener("visibilitychange", syncConnectionStatus);
+
+    return () => {
+      window.removeEventListener("offline", syncConnectionStatus);
+      window.removeEventListener("online", syncConnectionStatus);
+      window.removeEventListener("focus", syncConnectionStatus);
+      document.removeEventListener("visibilitychange", syncConnectionStatus);
+    };
+  }, []);
 
   const handleTermsAccept = async (termId) => {
     try {
@@ -131,6 +152,21 @@ const AppLayout = () => {
     setAutoStartVoice(false);
   };
 
+  if (isOffline && location.pathname !== "/dash") {
+    return (
+      <>
+        <div
+          role="status"
+          aria-live="polite"
+          className="sticky top-0 z-[60] flex min-h-10 items-center justify-center gap-2 border-b border-amber-400/20 bg-amber-500 px-3 py-2 text-center text-sm font-semibold text-amber-950 shadow-lg"
+        >
+          <span>You are offline. Showing the latest saved dashboard. Please connect to the internet.</span>
+        </div>
+        <Navigate to="/dash" replace />
+      </>
+    );
+  }
+
   return (
     <div
       className="min-h-screen bg-zinc-950 text-zinc-100"
@@ -147,6 +183,28 @@ const AppLayout = () => {
           },
         }}
       />
+      {isOffline && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="sticky top-0 z-[60] flex min-h-10 items-center justify-center gap-2 border-b border-amber-400/20 bg-amber-500 px-3 py-2 text-center text-sm font-semibold text-amber-950 shadow-lg"
+        >
+          <svg
+            aria-hidden="true"
+            className="h-4 w-4 flex-none"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+            <path d="M12 20h.01" />
+            <path d="m2 2 20 20" />
+          </svg>
+          <span>You are offline. Showing the latest saved dashboard. Please connect to the internet.</span>
+        </div>
+      )}
       <Outlet />
       <TermsPopup
         isOpen={showTerms}

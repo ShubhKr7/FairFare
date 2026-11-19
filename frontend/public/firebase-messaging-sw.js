@@ -1,10 +1,86 @@
+/* eslint-disable no-undef */
+const SHELL_CACHE = "fairfare-shell-v3";
+const ASSET_CACHE = "fairfare-assets-v3";
+
 self.addEventListener("install", (event) => {
-  console.log("Service Worker installing...");
+  event.waitUntil(
+    caches.open(SHELL_CACHE).then(async (cache) => {
+      await Promise.all(
+        ["/", "/index.html", "/manifest.json"].map((path) =>
+          cache.add(path).catch(() => undefined)
+        )
+      );
+    })
+  );
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
-  console.log("Service Worker activating...");
+  event.waitUntil(
+    Promise.all([
+      caches.keys().then((keys) =>
+        Promise.all(
+          keys
+            .filter(
+              (key) =>
+                key.startsWith("fairfare-") &&
+                key !== SHELL_CACHE &&
+                key !== ASSET_CACHE
+            )
+            .map((key) => caches.delete(key))
+        )
+      ),
+      clients.claim(),
+    ])
+  );
+});
+
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+  if (request.method !== "GET") return;
+
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request)
+        .then(async (response) => {
+          if (response.ok) {
+            const cache = await caches.open(SHELL_CACHE);
+            await cache.put(request, response.clone());
+            await cache.put("/index.html", response.clone());
+          }
+          return response;
+        })
+        .catch(async () => {
+          const exact = await caches.match(request, { ignoreSearch: true });
+          const fallback = await caches.match("/index.html");
+          return (
+            exact ||
+            fallback ||
+            new Response("FairFare is unavailable offline.", {
+              status: 503,
+              headers: { "Content-Type": "text/plain" },
+            })
+          );
+        })
+    );
+    return;
+  }
+
+  const requestUrl = new URL(request.url);
+  if (requestUrl.origin !== self.location.origin) return;
+
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      if (cached) return cached;
+      return fetch(request).then(async (response) => {
+        if (response.ok) {
+          const cache = await caches.open(ASSET_CACHE);
+          await cache.put(request, response.clone());
+        }
+        return response;
+      });
+    })
+  );
 });
 
 // Firebase scripts
@@ -48,7 +124,7 @@ messaging.onBackgroundMessage((payload) => {
 });
 
 // Handle notification click
-self.addEventListener("notificationclick", function(event) {
+self.addEventListener("notificationclick", function (event) {
   event.notification.close();
 
   // Open FairFare app or focus if already open

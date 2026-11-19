@@ -1,6 +1,8 @@
+/* eslint-disable react/prop-types */
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import TripCard from "./tripCard";
+import { guardOfflineAction } from "../utils/offlineGuard";
 
 const TripsSection = ({ user }) => {
   const navigate = useNavigate();
@@ -15,6 +17,7 @@ const TripsSection = ({ user }) => {
   }, [user]);
 
   const handleTripClick = (trip) => {
+    if (!guardOfflineAction()) return;
     navigate(`/tripDetails/${trip._id}`);
   };
 
@@ -27,9 +30,17 @@ const TripsSection = ({ user }) => {
         </h2>
 
         <div className="flex items-center gap-3 md:gap-4">
-          <Link to="/allTrips">
+          <Link
+            to="/allTrips"
+            onClick={(event) => {
+              guardOfflineAction(event);
+            }}
+          >
             <button
               type="button"
+              onClick={(event) => {
+                guardOfflineAction(event);
+              }}
               className="text-xs font-medium text-zinc-400 hover:text-white transition-colors flex items-center gap-1 group py-1"
               title="View all trips"
             >
@@ -40,9 +51,17 @@ const TripsSection = ({ user }) => {
             </button>
           </Link>
 
-          <Link to="/addTrip">
+          <Link
+            to="/addTrip"
+            onClick={(event) => {
+              guardOfflineAction(event);
+            }}
+          >
             <button
               type="button"
+              onClick={(event) => {
+                guardOfflineAction(event);
+              }}
               className="w-9 h-9 md:w-8 md:h-8 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center transition-all shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95"
               title="Create New Trip"
             >

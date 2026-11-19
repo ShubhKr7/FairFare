@@ -1,7 +1,9 @@
+/* eslint-disable react/prop-types */
 import { NavLink, useLocation } from "react-router-dom";
 import { FaRobot } from "react-icons/fa";
 import { Home, Users, Compass, BarChart2, Plus, Receipt } from "lucide-react";
 import { useState, useEffect } from "react";
+import { guardOfflineAction } from "../utils/offlineGuard";
 
 // 7 flex slots: Home(0) Friends(1) Trips(2) | FAB(3) | Expenses(4) Analytics(5) FairAI(6)
 // pill width = 100/7 ≈ 14.286%
@@ -57,13 +59,19 @@ const NAV_ITEMS_RIGHT = [
 
 const ALL_NAV_ITEMS = [...NAV_ITEMS_LEFT, ...NAV_ITEMS_RIGHT];
 
+ 
 const NavItem = ({ to, label, Icon, matchPrefixes }) => {
   const location = useLocation();
   const isActive = matchPrefixes.some((p) => location.pathname.startsWith(p));
+  const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
 
   return (
     <NavLink
       to={to}
+      onClick={(event) => {
+        if (!guardOfflineAction(event)) return;
+      }}
+      aria-disabled={isOffline}
       className="relative flex flex-col items-center justify-center flex-1 py-2 z-10 active:scale-90 transition-transform duration-100"
     >
       {/* Icon with glow when active */}
@@ -115,6 +123,7 @@ const BottomNavbar = ({ onAddClick }) => {
   }, []);
 
   const handleAddClick = () => {
+    if (!guardOfflineAction()) return;
     if (!fabSeen) {
       setFabSeen(true);
       localStorage.setItem("fabSeen", "1");

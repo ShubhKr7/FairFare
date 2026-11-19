@@ -1429,6 +1429,7 @@ const updateGroupExpenseController = async (req, res) => {
     amount,
     paidBy,
     groupId,
+    editorId,
     splitMode,
     involvedMembers,
     customAmounts,
@@ -1440,6 +1441,7 @@ const updateGroupExpenseController = async (req, res) => {
     !title ||
     !amount ||
     !paidBy ||
+    !editorId ||
     !involvedMembers ||
     !Array.isArray(involvedMembers) ||
     involvedMembers.length === 0
@@ -1583,23 +1585,22 @@ const updateGroupExpenseController = async (req, res) => {
           );
         }
 
-        // Bulk insert activity logs (1 DB call instead of N sequential calls)
-        const payerUser = await User.findById(paidBy).select("username");
-        const payerUsername = payerUser?.username || "Someone";
         const groupObj = targetGroupId
           ? await Group.findById(targetGroupId).select("name")
           : null;
         const groupName = groupObj?.name;
+        const editor = await User.findById(editorId).select("username");
+        const editorUsername = editor?.username || "Someone";
 
         const activityLogs = updatedExpense.owedBy
           .filter((owed) => owed.user.toString() !== paidBy.toString())
           .map((owed) => ({
             recipient: owed.user,
-            sender: paidBy,
+            sender: editorId,
             type: "expense_edited",
             message: groupName
-              ? `${payerUsername} edited the expense "${title}" in ${groupName}`
-              : `${payerUsername} edited the expense "${title}"`,
+              ? `${editorUsername} edited the expense "${title}" in ${groupName}`
+              : `${editorUsername} edited the expense "${title}"`,
             referenceId: expenseId,
           }));
 

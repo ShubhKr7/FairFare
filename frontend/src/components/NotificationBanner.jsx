@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { requestNotificationPermission } from "../../notifications";
+import { guardOfflineAction } from "../utils/offlineGuard";
 
 const NotificationBanner = () => {
   const [showBanner, setShowBanner] = useState(false);
@@ -50,6 +51,7 @@ const NotificationBanner = () => {
   }, []);
 
   const handleTurnOn = async () => {
+    if (!guardOfflineAction()) return;
     if (permission === "denied") {
       setShowInstructionsPopup(true);
       return;

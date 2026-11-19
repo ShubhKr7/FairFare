@@ -10,8 +10,7 @@
     "test:integration": "cross-env NODE_OPTIONS=--experimental-vm-modules jest tests/integration",
     "test:e2e": "cross-env NODE_OPTIONS=--experimental-vm-modules jest tests/e2e",
     "test:ci": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage",
-    "start": "nodemon index.js",
-    "backfill-expense-dates": "node scripts/backfillExpenseDates.js"
+    "start": "nodemon index.js"
   },
   "author": "",
   "license": "ISC",

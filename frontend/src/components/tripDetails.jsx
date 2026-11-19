@@ -924,6 +924,7 @@ const TripDetails = () => {
                 filteredExpenses.map((expense, idx) => (
                   <ExpenseCard
                     key={expense._id || idx}
+                    id={`expense-card-${expense._id}`}
                     _id={expense._id}
                     title={expense.title}
                     category={expense.category}

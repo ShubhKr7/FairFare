@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 const ExpenseCard = ({
+  id,
   _id,
   title,
   category,
@@ -149,6 +150,7 @@ const ExpenseCard = ({
 
   return (
     <div
+      id={id}
       className="group relative flex flex-col bg-zinc-900/40 hover:bg-zinc-900/60 border border-white/5 hover:border-indigo-500/30 rounded-xl transition-all duration-300 ease-out overflow-hidden"
       onClick={(e) => {
         // Prevent toggle if clicking buttons or modal

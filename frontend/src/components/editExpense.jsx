@@ -220,9 +220,11 @@ const EditExpense = () => {
         setTimeout(() => {
           setSuccessOverlay(null);
           if (returnToChatFriendId) {
-            navigate(`/transaction-history/${returnToChatFriendId}`);
+            navigate(`/transaction-history/${returnToChatFriendId}#${expenseId}`);
           } else {
-            navigate(`/tripDetails/${tripId}`, { state: { expenseEdited: true } });
+            navigate(`/tripDetails/${tripId}`, {
+              state: { expenseEdited: true, highlightExpenseId: expenseId },
+            });
           }
         }, 2200);
       }

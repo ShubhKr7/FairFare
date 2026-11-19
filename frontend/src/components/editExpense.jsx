@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import Cookies from "js-cookie";
 import {
   ArrowLeft
 } from "lucide-react";
@@ -197,6 +198,7 @@ const EditExpense = () => {
       title: title,
       amount: totalEntered,
       paidBy: paidBy,
+      editorId: Cookies.get("id"),
       groupId: tripId,
       splitMode: splitMode,
       involvedMembers: selected,

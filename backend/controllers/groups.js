@@ -1592,17 +1592,34 @@ const updateGroupExpenseController = async (req, res) => {
         const editor = await User.findById(editorId).select("username");
         const editorUsername = editor?.username || "Someone";
 
-        const activityLogs = updatedExpense.owedBy
-          .filter((owed) => owed.user.toString() !== paidBy.toString())
-          .map((owed) => ({
-            recipient: owed.user,
-            sender: editorId,
-            type: "expense_edited",
-            message: groupName
-              ? `${editorUsername} edited the expense "${title}" in ${groupName}`
-              : `${editorUsername} edited the expense "${title}"`,
-            referenceId: expenseId,
-          }));
+        const editorRecipient = {
+          recipient: editorId,
+          sender: editorId,
+          type: "expense_edited",
+          message: groupName
+            ? `${editorUsername} edited the expense "${title}" in ${groupName}`
+            : `${editorUsername} edited the expense "${title}"`,
+          referenceId: expenseId,
+        };
+
+        // Ensure the editor (A) always gets an activity log, even when they are
+        // not among the owedBy recipients (e.g. they paid for the expense or
+        // don't owe anyone). Dedupe so we don't double-log them.
+        const activityLogs = [
+          editorRecipient,
+          ...updatedExpense.owedBy
+            .filter((owed) => owed.user.toString() !== paidBy.toString())
+            .filter((owed) => owed.user.toString() !== editorId.toString())
+            .map((owed) => ({
+              recipient: owed.user,
+              sender: editorId,
+              type: "expense_edited",
+              message: groupName
+                ? `${editorUsername} edited the expense "${title}" in ${groupName}`
+                : `${editorUsername} edited the expense "${title}"`,
+              referenceId: expenseId,
+            })),
+        ];
 
         if (activityLogs.length > 0) {
           await Notification.insertMany(activityLogs);

@@ -5,7 +5,6 @@ import FairFareCard from "./FairFareCard";
 import FriendsSection from "./friendsSection";
 import RecentExpenses from "./RecentExpenses";
 import TopNavbar from "./TopNavbar";
-import SwipeToFriends from "./SwipeToFriends";
 import NotificationBanner from "./NotificationBanner";
 import { requestNotificationPermission } from "../../notifications";
 import api from "../utils/api";
@@ -13,6 +12,8 @@ import TermsPopup from "./TermsPopup";
 import QuickActions from "./QuickActions";
 import QuickAddExpenseModal from "./QuickAddExpenseModal";
 import { motion } from "framer-motion";
+import { getDashboardSnapshot, saveDashboardSnapshot } from "../utils/dashboardCache";
+import { guardOfflineAction } from "../utils/offlineGuard";
 
 const handleScrollTop = () => {
   window.scrollTo({
@@ -83,46 +84,36 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("user");
-      if (stored) {
-        setUser(JSON.parse(stored));
-      }
-    } catch (e) {
-      console.error("Failed to parse user from localStorage:", e);
-    }
-  }, []);
-
-  useEffect(() => {
     async function getDetails() {
       const userId = Cookies.get("id");
+      if (!userId) return;
+
       localStorage.removeItem("tripMembers");
       localStorage.removeItem("currentGroup");
       let fcmTokens = [];
 
+      const applyCachedUser = async () => {
+        const cachedUser = await getDashboardSnapshot(userId);
+        if (cachedUser) {
+          setUser(cachedUser);
+        }
+        return cachedUser;
+      };
+
+      await applyCachedUser();
+
+      if (!navigator.onLine) {
+        return;
+      }
+
       try {
-        if (user) {
-          const lastUpdatedAtUser = await api.get(
-            `${API_BASE}/user/last-updated-at/${userId}`
-          );
-          if (
-            new Date(lastUpdatedAtUser.data.lastUpdatedAt).getTime() !==
-            new Date(user.updatedAt).getTime()
-          ) {
-            const response = await api.get(`${API_BASE}/user/${userId}`);
-            if (response.status === 200) {
-              setUser(response.data.user);
-              localStorage.setItem("user", JSON.stringify(response.data.user));
-              fcmTokens = response.data.user.fcmToken || [];
-            }
-          }
-        } else {
-          const response = await api.get(`${API_BASE}/user/${userId}`);
-          if (response.status === 200) {
-            setUser(response.data.user);
-            localStorage.setItem("user", JSON.stringify(response.data.user));
-            fcmTokens = response.data.user.fcmToken || [];
-          }
+        const response = await api.get(`${API_BASE}/user/${userId}`);
+        const serverUser = response.status === 200 ? response.data?.user : null;
+
+        if (serverUser) {
+          setUser(serverUser);
+          await saveDashboardSnapshot(userId, serverUser);
+          fcmTokens = serverUser.fcmToken || [];
         }
 
         const fcmToken = await requestNotificationPermission();
@@ -134,10 +125,36 @@ const Dashboard = () => {
         }
       } catch (err) {
         console.error("Error fetching user:", err);
+        await applyCachedUser();
       }
     }
     getDetails();
-  }, []);
+  }, [API_BASE]);
+
+  useEffect(() => {
+    const handleOnline = async () => {
+      const userId = Cookies.get("id");
+      if (!userId) return;
+
+      try {
+        const response = await api.get(`${API_BASE}/user/${userId}`);
+        const serverUser = response.status === 200 ? response.data?.user : null;
+        if (serverUser) {
+          setUser(serverUser);
+          await saveDashboardSnapshot(userId, serverUser);
+        }
+      } catch (error) {
+        console.error("Error refreshing dashboard after reconnect:", error);
+        const cachedUser = await getDashboardSnapshot(userId);
+        if (cachedUser) {
+          setUser(cachedUser);
+        }
+      }
+    };
+
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [API_BASE]);
 
   // --- UI SECTION (Redesigned) ---
   return (
@@ -170,12 +187,16 @@ const Dashboard = () => {
 
             {/* Main Card Wrapper - Giving it a 'Premium Device' feel */}
             <motion.div variants={popIn} className="relative group perspective-1000">
-              <FairFareCard />
+              <FairFareCard user={user} />
             </motion.div>
 
             {/* Quick Actions Bar */}
             <motion.div variants={popIn}>
-              <QuickActions onQuickExpenseClick={() => setShowQuickExpense(true)} />
+              <QuickActions
+                onQuickExpenseClick={() => {
+                  if (guardOfflineAction()) setShowQuickExpense(true);
+                }}
+              />
             </motion.div>
 
             {/* Trips Section - Wrapped in a clean container */}

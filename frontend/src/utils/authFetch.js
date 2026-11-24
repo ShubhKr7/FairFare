@@ -2,6 +2,14 @@
 import Cookies from "js-cookie";
 
 export async function authFetch(url, options = {}) {
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    throw Object.assign(new Error("Please connect to the internet"), {
+      name: "OfflineError",
+      code: "ERR_OFFLINE",
+      isOffline: true,
+    });
+  }
+
   const token = Cookies.get("authToken"); // read JWT
   const id = Cookies.get("id");
 

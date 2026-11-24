@@ -1,57 +1,63 @@
+/* eslint-disable react/prop-types */
 import { Link } from "react-router-dom";
 import { FaUser, FaChartBar, FaRobot, FaHeartbeat } from "react-icons/fa";
-import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import api from "../utils/api";
 import dashboardLogoNew from "../../public/dashboardLogoNew.png";
+import { guardOfflineAction } from "../utils/offlineGuard";
 const TopNavbar = ({ user }) => {
-  const navigate = useNavigate();
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    if (user && user._id) {
-      fetchUnreadCount();
-      // Optionally poll every 30 seconds for new notifications
-      const interval = setInterval(fetchUnreadCount, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [user]);
+    if (!navigator.onLine || !user?._id) return undefined;
 
-  const fetchUnreadCount = async () => {
-    try {
-      const response = await api.get(`/activity/${user._id}/unread-count`);
-      setUnreadCount(response.data.unreadCount);
-    } catch (error) {
-      console.error("Error fetching unread count:", error);
-    }
-  };
+    const fetchUnreadCount = async () => {
+      try {
+        const response = await api.get(
+          `/activity/${user._id}/unread-count`
+        );
+        setUnreadCount(response.data.unreadCount);
+      } catch (error) {
+        console.error("Error fetching unread count:", error);
+      }
+    };
+
+    fetchUnreadCount();
+    const interval = window.setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, [user?._id]);
 
   return (
     <nav className="w-full bg-zinc-900/80 backdrop-blur-xl border border-white/5 rounded-2xl px-4 py-3 flex justify-between items-center shadow-lg shadow-black/20 relative">
       {/* --- Brand Logo (left anchor) --- */}
       <div className="flex-shrink-0">
-          <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg blur opacity-0 group-hover:opacity-25 transition duration-500 pointer-events-none"></div>
-          <img
-            src={dashboardLogoNew}
-            alt="FairFare"
-            className="relative h-9 w-auto object-contain rounded-lg"
-          />
+        <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg blur opacity-0 group-hover:opacity-25 transition duration-500 pointer-events-none"></div>
+        <img
+          src={dashboardLogoNew}
+          alt="FairFare"
+          className="relative h-9 w-auto object-contain rounded-lg"
+        />
       </div>
 
       {/* --- Wordmark (true center) --- */}
-        <span className="text-xl font-bold tracking-tight select-none">
-          <span className="text-white">Fair</span>
-          <span className="bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent group-hover:from-indigo-300 group-hover:to-violet-300 transition-all duration-300">
-            Fare
-          </span>
+      <span className="text-xl font-bold tracking-tight select-none">
+        <span className="text-white">Fair</span>
+        <span className="bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent group-hover:from-indigo-300 group-hover:to-violet-300 transition-all duration-300">
+          Fare
         </span>
+      </span>
 
       {/* --- Action Center --- */}
       <div className="flex items-center gap-3 md:gap-4">
 
         {/* 1. Feature Links – tablet / laptop only */}
         <div className="[@media(max-width:768px)]:hidden items-center gap-2">
-          <Link to="/FairAI">
+          <Link
+            to="/FairAI"
+            onClick={(event) => {
+              guardOfflineAction(event);
+            }}
+          >
             <button
               className="p-2.5 rounded-xl bg-transparent hover:bg-white/5 text-zinc-400 hover:text-white border border-transparent hover:border-white/5 transition-all duration-200"
               title="FairAI"
@@ -60,7 +66,12 @@ const TopNavbar = ({ user }) => {
             </button>
           </Link>
 
-          <Link to="/analytics">
+          <Link
+            to="/analytics"
+            onClick={(event) => {
+              guardOfflineAction(event);
+            }}
+          >
             <button
               className="p-2.5 rounded-xl bg-transparent hover:bg-white/5 text-zinc-400 hover:text-white border border-transparent hover:border-white/5 transition-all duration-200"
               title="Analytics"
@@ -72,7 +83,12 @@ const TopNavbar = ({ user }) => {
 
         {/* 2. User Actions Group */}
         <div className="flex items-center gap-2">
-          <Link to={`/activity/${user?._id}`}>
+          <Link
+            to={`/activity/${user?._id}`}
+            onClick={(event) => {
+              guardOfflineAction(event);
+            }}
+          >
             <button
               className="relative p-2.5 rounded-xl bg-transparent hover:bg-white/5 text-zinc-400 hover:text-white border border-transparent hover:border-white/5 transition-all duration-200"
               title="Activity"
@@ -85,7 +101,12 @@ const TopNavbar = ({ user }) => {
             </button>
           </Link>
 
-          <Link to="/profile">
+          <Link
+            to="/profile"
+            onClick={(event) => {
+              guardOfflineAction(event);
+            }}
+          >
             <button
               className="relative p-2.5 rounded-xl bg-transparent hover:bg-white/5 text-zinc-400 hover:text-white border border-transparent hover:border-white/5 transition-all duration-200"
               title="Edit Profile"

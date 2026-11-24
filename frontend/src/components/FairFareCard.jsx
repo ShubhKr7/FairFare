@@ -1,15 +1,15 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable react/prop-types */
 import { useState, useEffect } from "react";
 import Cookies from "js-cookie";
 import { QRCodeCanvas } from "qrcode.react";
 
-const FairFareCard = () => {
+const FairFareCard = ({ user: dashboardUser }) => {
   const [isFlipped, setIsFlipped] = useState(false);
   const [last4, setLast4] = useState(""); // State for last4
   const [netBalance, setNetBalance] = useState(0); // State for net balance
   const [balanceMessage, setBalanceMessage] = useState(""); // State for balance message
-  const [user, setUser] = useState(
-    () => JSON.parse(localStorage.getItem("user")) || {}
-  );
+  const user = dashboardUser || {};
 
   // Generate or retrieve last4 using cookies
   useEffect(() => {
@@ -22,16 +22,6 @@ const FairFareCard = () => {
 
     setLast4(storedLast4);
   }, []);
-
-  //To sync with local storage
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const updatedUser = JSON.parse(localStorage.getItem("user")) || {};
-      setUser(updatedUser);
-    }, 1000); // Check every second, or adjust if needed
-
-    return () => clearInterval(interval);
-  }, [user]);
 
   // Calculate net balance
   useEffect(() => {

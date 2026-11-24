@@ -1,10 +1,11 @@
+/* eslint-disable react/prop-types */
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import PropTypes from "prop-types";
 import FriendCard from "./FriendCard";
-import axios from "axios";
 import toast from "react-hot-toast";
 import api from "../utils/api";
+import { updateDashboardSnapshot } from "../utils/dashboardCache";
+import { guardOfflineAction } from "../utils/offlineGuard";
 
 const FriendsSection = ({ user }) => {
   const [friends, setFriends] = useState([]);
@@ -31,6 +32,7 @@ const FriendsSection = ({ user }) => {
   // 🔁 POLLING: Update balances every 2 seconds
   useEffect(() => {
     const fetchUpdatedBalances = async () => {
+      if (!navigator.onLine) return;
       try {
         const res = await api.post(
           `${API_BASE}/user/get-updated-friend-balances`,
@@ -40,7 +42,7 @@ const FriendsSection = ({ user }) => {
         const updatedData = res.data; // [{ friendId, balance }]
         // Assuming `setFriends` updates the friends list with the new balances
         setFriends((prevFriends) => {
-          return prevFriends?.map((friend) => {
+          const updatedFriends = prevFriends?.map((friend) => {
             // Find matching friend in updated data
             const updatedFriend = updatedData.find(
               (data) =>
@@ -62,6 +64,9 @@ const FriendsSection = ({ user }) => {
               },
             };
           });
+
+          updateDashboardSnapshot(user?._id, { friends: updatedFriends });
+          return updatedFriends;
         });
       } catch (err) {
         console.error("Error fetching updated friend balances:", err);
@@ -73,9 +78,10 @@ const FriendsSection = ({ user }) => {
     }, 2000); // Every 2 seconds
 
     return () => clearInterval(interval); // Cleanup
-  }, [user?._id]);
+  }, [API_BASE, user?._id]);
 
   const handleDeleteFriend = async (friendIdToDelete) => {
+    if (!guardOfflineAction()) return;
     try {
       const res = await api.delete(`${API_BASE}/user/remove-friend`, {
         data: {
@@ -85,9 +91,13 @@ const FriendsSection = ({ user }) => {
       });
 
       if (res.status === 200) {
-        setFriends((prev) =>
-          prev.filter((f) => f.friend?._id !== friendIdToDelete)
-        );
+        setFriends((prev) => {
+          const updatedFriends = prev.filter(
+            (f) => f.friend?._id !== friendIdToDelete
+          );
+          updateDashboardSnapshot(user?._id, { friends: updatedFriends });
+          return updatedFriends;
+        });
         toast.success("Friend removed successfully!");
       }
     } catch (error) {
@@ -110,19 +120,13 @@ const FriendsSection = ({ user }) => {
   );
 
   const handleUpdateFriendBalance = (email, newBalance) => {
-    setFriends((prev) =>
-      prev.map((f) =>
+    setFriends((prev) => {
+      const updatedFriends = prev.map((f) =>
         f?.friend?.email === email ? { ...f, balance: newBalance } : f
-      )
-    );
-    const updatedUser = { ...user };
-    const friendIndex = updatedUser.friends.findIndex(
-      (f) => f?.friend?.email === email
-    );
-    if (friendIndex !== -1) {
-      updatedUser.friends[friendIndex].balance = newBalance;
-      localStorage.setItem("user", JSON.stringify(updatedUser));
-    }
+      );
+      updateDashboardSnapshot(user?._id, { friends: updatedFriends });
+      return updatedFriends;
+    });
   };
 
   // Split and sort
@@ -158,7 +162,14 @@ const FriendsSection = ({ user }) => {
             Friends & Contacts
           </h2>
 
-          <Link to="/addFriend" className="relative group">
+          <Link
+            to="/addFriend"
+            onClick={(event) => {
+              guardOfflineAction(event);
+            }}
+            aria-disabled={typeof navigator !== "undefined" && !navigator.onLine}
+            className="relative group"
+          >
             <button
               type="button"
               className="w-9 h-9 md:w-8 md:h-8 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center transition-all shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95"
@@ -295,7 +306,7 @@ const FriendsSection = ({ user }) => {
               No friends added yet
             </p>
             <p className="text-xs text-zinc-600 mt-1">
-              Tap the '+' button to add contacts.
+              Tap the &apos;+&apos; button to add contacts.
             </p>
           </div>
         ) : (
